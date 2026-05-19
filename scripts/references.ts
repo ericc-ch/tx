@@ -17,6 +17,11 @@ const repositories = [
     directory: "effect-smol",
     url: "https://github.com/Effect-TS/effect-smol.git",
   },
+  {
+    name: "WXT",
+    directory: "wxt",
+    url: "https://github.com/wxt-dev/wxt.git",
+  },
 ] satisfies ReadonlyArray<ReferenceRepository>
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))

@@ -32,6 +32,15 @@ importers:
 
   packages/extension:
     dependencies:
+      '@effect/platform-browser':
+        specifier: ^4.0.0-beta.66
+        version: 4.0.0-beta.67(effect@4.0.0-beta.66)
+      '@tiket-tools/server':
+        specifier: workspace:*
+        version: link:../server
+      effect:
+        specifier: ^4.0.0-beta.66
+        version: 4.0.0-beta.66
       solid-js:
         specifier: ^1.9.11
         version: 1.9.13
@@ -219,6 +228,11 @@ packages:
   '@effect/language-service@0.86.1':
     resolution: {integrity: sha512-jfUuFdtNPKRZ4ZSrgTnfMHPIVq8L9cM+YGEylQ1lhIgNY23ZvfdPg0cUlWESd4q9aGvOWSA8E79AS0qe3j4ROw==}
     hasBin: true
+
+  '@effect/platform-browser@4.0.0-beta.67':
+    resolution: {integrity: sha512-WB8ANPbqyHX8aPimB2gduusgZBpvab47pGRHf7Wk9VtUsWMOos3W08I2QYdWN/k5kdmwfmG6cDlrFo42Es+I/Q==}
+    peerDependencies:
+      effect: ^4.0.0-beta.67
 
   '@effect/platform-node-shared@4.0.0-beta.66':
     resolution: {integrity: sha512-+ymrhBnESv/hmn5SKTe2//IY9Ox/hGPeoogEWhW47ZGyhFI5eMYFxdEUBa+3IAV05rrBzrxON9lynu68n0DM7w==}
@@ -2949,6 +2963,11 @@ snapshots:
       - supports-color
 
   '@effect/language-service@0.86.1': {}
+
+  '@effect/platform-browser@4.0.0-beta.67(effect@4.0.0-beta.66)':
+    dependencies:
+      effect: 4.0.0-beta.66
+      multipasta: 0.2.7
 
   '@effect/platform-node-shared@4.0.0-beta.66(effect@4.0.0-beta.66)':
     dependencies:

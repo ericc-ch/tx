@@ -4,7 +4,7 @@ Run `pnpm run check` after completing a task (typecheck and test per package; li
 ## Workspace
 
 - `packages/server` — CLI / library (`@tiket-tools/server`)
-- `packages/extension` — browser extension (`@tiket-tools/extension`, WXT)
+- `packages/extension` — browser extension (`@tiket-tools/extension`, [WXT](https://wxt.dev)); targets **Manifest V2** (`manifestVersion: 2` in `wxt.config.ts`)
 
 Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx).
 
@@ -20,3 +20,4 @@ Prefer exploring and reading this directory over searching for documentation. Th
 Available references:
 
 - effect-smol - Effect v4
+- wxt - WXT (extension framework; manifest, entrypoints, MV2/MV3 conversion)

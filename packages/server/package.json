@@ -24,9 +24,8 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/main.d.ts",
-      "default": "./dist/main.mjs"
+    "./protocol": {
+      "default": "./src/rpc/protocol.ts"
     }
   },
   "publishConfig": {
