@@ -1,0 +1,55 @@
+{
+  "name": "@tiket-tools/server",
+  "version": "0.0.1",
+  "description": "_description_",
+  "keywords": [
+    "pkg-placeholder"
+  ],
+  "homepage": "https://github.com/ericc-ch/pkg-placeholder",
+  "bugs": "https://github.com/ericc-ch/pkg-placeholder/issues",
+  "author": {
+    "name": "Erick Christian",
+    "email": "erickchristian48@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ericc-ch/pkg-placeholder.git"
+  },
+  "bin": {
+    "pkg-placeholder": "./dist/cli.mjs"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/main.d.ts",
+      "default": "./dist/main.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "pnpm run build",
+    "start": "node src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-node": "^4.0.0-beta.66",
+    "effect": "^4.0.0-beta.66",
+    "playwright": "^1.60.0",
+    "which": "^7.0.0"
+  },
+  "devDependencies": {
+    "@effect/vitest": "^4.0.0-beta.66",
+    "@types/node": "24.x.x",
+    "@types/which": "^3.0.4",
+    "tsdown": "^0.22.0",
+    "vitest": "^4.1.6"
+  }
+}

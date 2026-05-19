@@ -1,0 +1,28 @@
+{
+  "name": "tiket-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --if-present run build",
+    "format": "oxfmt",
+    "lint": "oxlint --type-aware",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run lint",
+    "prepare": "simple-git-hooks && effect-language-service patch && node scripts/references.ts",
+    "test": "pnpm -r --if-present run test",
+    "typecheck": "pnpm -r --if-present run typecheck"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.86.1",
+    "@types/node": "24.x.x",
+    "oxfmt": "^0.50.0",
+    "oxlint": "^1.65.0",
+    "oxlint-tsgolint": "^0.22.1",
+    "simple-git-hooks": "^2.13.1",
+    "typescript": "^6.0.3"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "pnpm run check"
+  },
+  "packageManager": "pnpm@11.1.2"
+}
