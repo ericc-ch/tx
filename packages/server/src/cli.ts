@@ -37,8 +37,11 @@ const tiketCommand = Command.make(
       Flag.withDefault(5000),
     ),
     browserPath: Flag.string("browser-path").pipe(
-      Flag.withDescription("Path to browser executable (default: firefox on PATH)"),
+      Flag.withDescription("Path to browser executable (default: helium on PATH)"),
       Flag.optional,
+    ),
+    extensionPath: Flag.string("extension-path").pipe(
+      Flag.withDescription("Path to built extension directory"),
     ),
   },
   ({ count, threshold, url }) =>
@@ -55,7 +58,9 @@ const tiketCommand = Command.make(
     }).pipe(Effect.scoped),
 ).pipe(
   Command.withDescription("Start tiket server and spawn browser"),
-  Command.provide(({ browserPath }) => BrowserManager.layer(Option.getOrUndefined(browserPath))),
+  Command.provide(({ browserPath, extensionPath }) =>
+    BrowserManager.layer(extensionPath, Option.getOrUndefined(browserPath)),
+  ),
 )
 
 const startCommand = Command.make("start").pipe(

@@ -1,22 +1,22 @@
 import { execSync } from "node:child_process"
 import { defineConfig } from "wxt"
 
-let firefoxPath: string
+let heliumPath: string
 
 try {
-  firefoxPath = execSync("command -v firefox").toString().trim()
+  heliumPath = execSync("command -v helium").toString().trim()
 } catch {
-  if (process.env.FIREFOX_PATH) {
-    firefoxPath = process.env.FIREFOX_PATH
+  if (process.env.HELIUM_PATH) {
+    heliumPath = process.env.HELIUM_PATH
   } else {
-    throw new Error("Could not find Firefox binary. Install firefox or set FIREFOX_PATH.")
+    throw new Error("Could not find Helium binary. Install helium or set HELIUM_PATH.")
   }
 }
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   manifestVersion: 2,
-  browser: "firefox",
+  browser: "chrome",
   modules: ["@wxt-dev/module-solid"],
   manifest: {
     host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
@@ -30,7 +30,7 @@ export default defineConfig({
   webExt: {
     disabled: false,
     binaries: {
-      firefox: firefoxPath,
+      chrome: heliumPath,
     },
   },
 })

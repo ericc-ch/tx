@@ -9,10 +9,19 @@ export interface BrowserEntry {
 }
 
 export class BrowserManager extends Context.Service<BrowserManager>()("BrowserManager", {
-  make: Effect.fn(function* (browserPath: string) {
+  make: Effect.fn(function* (browserPath: string, extensionPath: string) {
     const fs = yield* FileSystem.FileSystem
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const browsers = new Map<string, BrowserEntry>()
+
+    const extensionExists = yield* fs.exists(extensionPath)
+    if (!extensionExists) {
+      return yield* Effect.die(
+        new Error(
+          `Built extension not found at ${extensionPath}. Run: pnpm --filter @tiket-tools/extension build`,
+        ),
+      )
+    }
 
     const spawn = Effect.fn(function* (url: string) {
       const name = generateName()
@@ -22,7 +31,7 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       const urlWithId = new URL(url)
       urlWithId.searchParams.set("__browser_id", name)
 
-      const command = ChildProcess.make`${browserPath} --new-instance --profile ${dir} ${urlWithId.toString()}`
+      const command = ChildProcess.make`${browserPath} --user-data-dir=${dir} --load-extension=${extensionPath} --no-first-run --no-default-browser-check --disable-default-apps ${urlWithId.toString()}`
       const handle = yield* spawner.spawn(command)
 
       const entry = { handle, profilePath: dir } satisfies BrowserEntry
@@ -69,14 +78,14 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
     }
   }),
 }) {
-  static layer = (browserPath?: string) =>
+  static layer = (extensionPath: string, browserPath?: string) =>
     Layer.effect(
       this,
       browserPath !== undefined
-        ? this.make(browserPath)
+        ? this.make(browserPath, extensionPath)
         : pipe(
-            Effect.promise(() => which("firefox")),
-            Effect.andThen(this.make),
+            Effect.promise(() => which("helium")),
+            Effect.andThen((path) => this.make(path, extensionPath)),
           ),
     )
 }

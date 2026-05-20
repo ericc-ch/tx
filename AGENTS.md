@@ -4,7 +4,7 @@ Run `pnpm run check` after completing a task (typecheck and test per package; li
 ## Workspace
 
 - `packages/server` — CLI / library (`@tiket-tools/server`)
-- `packages/extension` — browser extension (`@tiket-tools/extension`, [WXT](https://wxt.dev)); targets **Manifest V2** (`manifestVersion: 2` in `wxt.config.ts`)
+- `packages/extension` — browser extension (`@tiket-tools/extension`, [WXT](https://wxt.dev)); targets **Chrome MV2** on **Helium** (`manifestVersion: 2`, `browser: "chrome"` in `wxt.config.ts`; override via `HELIUM_PATH`)
 
 Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx).
 
