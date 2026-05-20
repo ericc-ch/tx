@@ -6,8 +6,7 @@ const config: UserConfigExport = defineConfig({
   target: "esnext",
   platform: "node",
 
-  unbundle: true,
-  sourcemap: true,
+  sourcemap: "inline",
 })
 
 export default config

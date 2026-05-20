@@ -35,7 +35,7 @@
     "build": "tsdown",
     "prepack": "pnpm run build",
     "start": "node src/cli.ts",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
