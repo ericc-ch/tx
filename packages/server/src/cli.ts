@@ -11,11 +11,12 @@ import packageJson from "../package.json" with { type: "json" }
 import { RpcHandlers, ServerConfig } from "./rpc/handlers.ts"
 import { RPC_PORT, ServerRpcs } from "./rpc/protocol.ts"
 import { BrowserManager } from "./lib/browser.ts"
+import { corsForExtension } from "./lib/cors.ts"
 
 const Rpc = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol: "http" }).pipe(
   Layer.provide(RpcHandlers),
   Layer.provideMerge(RpcSerialization.layerNdjson),
-  Layer.provideMerge(HttpRouter.cors()),
+  Layer.provideMerge(corsForExtension()),
 )
 
 const ServerMain = HttpRouter.serve(Rpc).pipe(

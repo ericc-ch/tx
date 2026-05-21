@@ -4,43 +4,54 @@ import { ServerRpcs } from "@tiket-tools/server/protocol"
 import { Duration, Effect, Schedule } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
 import { readPeopleAhead } from "./parse"
+import { getBrowserId } from "@/lib/id"
 
-const getBrowserId = () => {
-  const urlParams = new URLSearchParams(window.location.search)
-  return urlParams.get("__browser_id") ?? "unknown"
-}
+const logQueueRead = (read: ReturnType<typeof readPeopleAhead>) =>
+  read.peopleAhead !== undefined
+    ? Effect.logInfo(`Queue read OK: ${read.summary}`)
+    : Effect.logInfo(`Queue read failed: ${read.summary}`)
 
-const reportQueuePosition = Effect.gen(function* () {
+const main = Effect.gen(function* () {
   const client = yield* RpcClient.make(ServerRpcs)
   const browserId = getBrowserId()
 
   yield* Effect.logInfo(`Starting queue position reporter for browser: ${browserId}`)
 
   const position = yield* Effect.sync(() => readPeopleAhead()).pipe(
-    Effect.tap((pos) =>
-      pos
-        ? Effect.logInfo(`Found queue position: ${pos.peopleAhead}`)
-        : Effect.logDebug("Queue position not found, retrying..."),
-    ),
+    Effect.tap(logQueueRead),
     Effect.repeat({
-      until: (pos): pos is { peopleAhead: number } => pos !== undefined,
-      schedule: Schedule.spaced(Duration.millis(100)),
+      until: (read) => read.peopleAhead !== undefined,
+      schedule: Schedule.spaced(Duration.millis(20)),
     }),
   )
 
-  yield* Effect.logInfo(`Reporting queue position: ${position.peopleAhead}`)
-  const ack = yield* client.ReportQueuePosition({
-    peopleAhead: position.peopleAhead,
-    browserId,
-  })
   yield* Effect.logInfo(
-    `Queue report acknowledged (threshold ${ack.threshold}, closed ${ack.closed})`,
+    `Reporting queue position ${position.peopleAhead} (${position.summary})`,
   )
+
+  yield* client
+    .ReportQueuePosition({
+      peopleAhead: position.peopleAhead,
+      browserId,
+    })
+    .pipe(
+      Effect.tap((ack) =>
+        Effect.logInfo(
+          `Queue report OK: peopleAhead=${position.peopleAhead}, threshold=${ack.threshold}, closed=${ack.closed} (${position.summary})`,
+        ),
+      ),
+      Effect.tapError((cause) =>
+        Effect.logError(
+          `Queue report failed: peopleAhead=${position.peopleAhead} (${position.summary})`,
+          cause,
+        ),
+      ),
+    )
 }).pipe(Effect.scoped)
 
 export default defineContentScript({
   matches: ["*://queue.tiket.com/*", "*://localhost/*"],
   main() {
-    reportQueuePosition.pipe(Effect.provide(RpcClientLayer), BrowserRuntime.runMain)
+    main.pipe(Effect.provide(RpcClientLayer), BrowserRuntime.runMain)
   },
 })
