@@ -19,3 +19,6 @@ server assign browser apa fill yang apa gitu
 server assign order based on priority/queue number
 
 data dari vira -> A -> ternyata udah dapet
+
+copy va ke discord
+screenshot

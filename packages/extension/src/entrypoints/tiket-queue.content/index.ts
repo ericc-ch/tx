@@ -1,21 +1,9 @@
-import { BrowserHttpClient, BrowserRuntime } from "@effect/platform-browser"
-import { Effect, Layer, Schedule } from "effect"
-import { RpcClient, RpcSerialization } from "effect/unstable/rpc"
-import { RPC_HTTP_URL, ServerRpcs } from "@tiket-tools/server/protocol"
-
-const readPeopleAhead = () => {
-  const el = document.querySelector("#MainPart_lbUsersInLineAheadOfYou")
-  const text = el?.textContent?.trim()
-  if (!text || text === "0") return undefined
-  const peopleAhead = Number(text.replace(/,/g, ""))
-  if (Number.isNaN(peopleAhead)) return undefined
-  return { peopleAhead }
-}
-
-const ClientLayer = RpcClient.layerProtocolHttp({ url: RPC_HTTP_URL }).pipe(
-  Layer.provideMerge(RpcSerialization.layerNdjson),
-  Layer.provideMerge(BrowserHttpClient.layerFetch),
-)
+import { RpcClientLayer } from "@/lib/rpc"
+import { BrowserRuntime } from "@effect/platform-browser"
+import { ServerRpcs } from "@tiket-tools/server/protocol"
+import { Duration, Effect, Schedule } from "effect"
+import { RpcClient } from "effect/unstable/rpc"
+import { readPeopleAhead } from "./parse"
 
 const getBrowserId = () => {
   const urlParams = new URLSearchParams(window.location.search)
@@ -36,7 +24,7 @@ const reportQueuePosition = Effect.gen(function* () {
     ),
     Effect.repeat({
       until: (pos): pos is { peopleAhead: number } => pos !== undefined,
-      schedule: Schedule.spaced("1 second"),
+      schedule: Schedule.spaced(Duration.millis(100)),
     }),
   )
 
@@ -53,6 +41,6 @@ const reportQueuePosition = Effect.gen(function* () {
 export default defineContentScript({
   matches: ["*://queue.tiket.com/*", "*://localhost/*"],
   main() {
-    BrowserRuntime.runMain(reportQueuePosition.pipe(Effect.provide(ClientLayer)))
+    reportQueuePosition.pipe(Effect.provide(RpcClientLayer), BrowserRuntime.runMain)
   },
 })

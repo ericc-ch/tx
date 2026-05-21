@@ -15,6 +15,7 @@ try {
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
+  srcDir: "src",
   manifestVersion: 2,
   browser: "chrome",
   modules: ["@wxt-dev/module-solid"],

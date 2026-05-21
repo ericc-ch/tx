@@ -1,10 +1,10 @@
 Use pnpm as package manager.
-Run `pnpm run check` after completing a task (typecheck and test per package; lint and format at workspace root).
+Run `pnpm run check` after completing a task (typecheck per package, `vitest` at workspace root, lint and format at workspace root).
 
 ## Workspace
 
-- `packages/server` — CLI / library (`@tiket-tools/server`)
-- `packages/extension` — browser extension (`@tiket-tools/extension`, [WXT](https://wxt.dev)); targets **Chrome MV2** on **Helium** (`manifestVersion: 2`, `browser: "chrome"` in `wxt.config.ts`; override via `HELIUM_PATH`)
+- `packages/server` — CLI / RPC server
+- `packages/extension` — browser extension
 
 Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx).
 

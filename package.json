@@ -9,17 +9,19 @@
     "lint": "oxlint --type-aware",
     "check": "pnpm run typecheck && pnpm run test && pnpm run lint",
     "prepare": "simple-git-hooks && effect-language-service patch && node scripts/references.ts",
-    "test": "pnpm -r --if-present run test",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
     "@effect/language-service": "^0.86.1",
     "@types/node": "24.x.x",
+    "jsdom": "^29.1.1",
     "oxfmt": "^0.50.0",
     "oxlint": "^1.65.0",
     "oxlint-tsgolint": "^0.22.1",
     "simple-git-hooks": "^2.13.1",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm run check"
