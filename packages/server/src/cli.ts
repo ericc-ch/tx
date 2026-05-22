@@ -4,14 +4,15 @@ import { NodeHttpServer, NodeRuntime, NodeServices } from "@effect/platform-node
 import { Effect, Layer, Option } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
 import os from "node:os"
-import { HttpRouter } from "effect/unstable/http"
+import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 import { createServer } from "node:http"
 import packageJson from "../package.json" with { type: "json" }
 import { RpcHandlers, ServerConfig } from "./rpc/handlers.ts"
-import { RPC_PORT, ServerRpcs } from "./rpc/protocol.ts"
+import { ServerRpcs } from "./rpc/schema.ts"
 import { BrowserManager } from "./lib/browser.ts"
 import { corsForExtension } from "./lib/cors.ts"
+import words from "./assets/words.json" with { type: "json" }
 
 const Rpc = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol: "http" }).pipe(
   Layer.provide(RpcHandlers),
@@ -20,7 +21,7 @@ const Rpc = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol: "ht
 )
 
 const ServerMain = HttpRouter.serve(Rpc).pipe(
-  Layer.provide(NodeHttpServer.layer(() => createServer(), { port: RPC_PORT })),
+  Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port: 0 })),
 )
 
 const tiketCommand = Command.make(
@@ -47,15 +48,32 @@ const tiketCommand = Command.make(
   },
   ({ count, threshold, url }) =>
     Effect.gen(function* () {
-      const browser = yield* BrowserManager
-      const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
-      yield* Effect.all(
-        Array.from({ length: count }, () => browser.spawn(url)),
-        { concurrency: parallelism },
+      const runServerAndBrowser = Effect.gen(function* () {
+        const server = yield* HttpServer.HttpServer
+        const port = server.address._tag === "TcpAddress" ? server.address.port : 0
+        yield* Effect.logInfo(`Server is listening on port ${port}`)
+
+        const browser = yield* BrowserManager
+        const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
+        yield* Effect.all(
+          Array.from({ length: count }, () => {
+            const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
+            const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
+            const browserId = `${adjective}-${noun}`
+            return browser.spawn(url, browserId, { browserId, port })
+          }),
+          { concurrency: parallelism },
+        )
+        return yield* Effect.never
+      }).pipe(
+        Effect.provide(
+          ServerMain.pipe(
+            Layer.provide(Layer.succeed(ServerConfig, ServerConfig.of({ threshold }))),
+          ),
+        ),
       )
-      return yield* Layer.launch(
-        ServerMain.pipe(Layer.provide(Layer.succeed(ServerConfig, ServerConfig.of({ threshold })))),
-      )
+
+      return yield* runServerAndBrowser
     }).pipe(Effect.scoped),
 ).pipe(
   Command.withDescription("Start tiket server and spawn browser"),
@@ -69,8 +87,8 @@ const startCommand = Command.make("start").pipe(
   Command.withSubcommands([tiketCommand]),
 )
 
-const command = Command.make("tiket-tools", {}).pipe(
-  Command.withDescription("Tiket tools server"),
+const command = Command.make("tx", {}).pipe(
+  Command.withDescription("tx server"),
   Command.withSubcommands([startCommand]),
 )
 

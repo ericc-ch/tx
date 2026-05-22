@@ -1,33 +1,39 @@
-import { RpcClientLayer } from "@/lib/rpc"
+import { MessageRpcClientLayer } from "@/lib/protocol"
 import { BrowserRuntime } from "@effect/platform-browser"
-import { ServerRpcs } from "@tiket-tools/server/protocol"
-import { Duration, Effect, Schedule } from "effect"
+import { ServerRpcs } from "@tx/server/schema"
+import { Duration, Effect, Option, Schedule, Schema } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
+import { storage } from "wxt/utils/storage"
 import { readPeopleAhead } from "./parse"
-import { getBrowserId } from "@/lib/id"
 
-const logQueueRead = (read: ReturnType<typeof readPeopleAhead>) =>
-  read.peopleAhead !== undefined
-    ? Effect.logInfo(`Queue read OK: ${read.summary}`)
-    : Effect.logInfo(`Queue read failed: ${read.summary}`)
+const getBrowserId = async () => {
+  const config = await storage.getItem("local:config")
+  return Schema.decodeUnknownOption(Schema.Struct({ browserId: Schema.String }))(config).pipe(
+    Option.map((c) => c.browserId),
+    Option.getOrUndefined,
+  )
+}
 
 const main = Effect.gen(function* () {
   const client = yield* RpcClient.make(ServerRpcs)
-  const browserId = getBrowserId()
 
-  yield* Effect.logInfo(`Starting queue position reporter for browser: ${browserId}`)
+  yield* Effect.logInfo("Starting queue position reporter")
+
+  const browserId = yield* Effect.promise(() => getBrowserId()).pipe(Effect.map((id) => id ?? ""))
 
   const position = yield* Effect.sync(() => readPeopleAhead()).pipe(
-    Effect.tap(logQueueRead),
+    Effect.tap((read) =>
+      read.peopleAhead !== undefined
+        ? Effect.logInfo(`Queue read OK: ${read.summary}`)
+        : Effect.logInfo(`Queue read failed: ${read.summary}`),
+    ),
     Effect.repeat({
       until: (read) => read.peopleAhead !== undefined,
       schedule: Schedule.spaced(Duration.millis(20)),
     }),
   )
 
-  yield* Effect.logInfo(
-    `Reporting queue position ${position.peopleAhead} (${position.summary})`,
-  )
+  yield* Effect.logInfo(`Reporting queue position ${position.peopleAhead} (${position.summary})`)
 
   yield* client
     .ReportQueuePosition({
@@ -52,6 +58,6 @@ const main = Effect.gen(function* () {
 export default defineContentScript({
   matches: ["*://queue.tiket.com/*", "*://localhost/*"],
   main() {
-    main.pipe(Effect.provide(RpcClientLayer), BrowserRuntime.runMain)
+    main.pipe(Effect.provide(MessageRpcClientLayer), BrowserRuntime.runMain)
   },
 })

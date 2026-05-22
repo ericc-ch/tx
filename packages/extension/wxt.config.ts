@@ -20,12 +20,12 @@ export default defineConfig({
   browser: "chrome",
   modules: ["@wxt-dev/module-solid"],
   manifest: {
+    permissions: ["storage", "tabs"],
     host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
   },
   dev: {
     server: {
-      host: "127.0.0.1",
-      origin: "http://127.0.0.1:3000",
+      host: "localhost",
     },
   },
   webExt: {

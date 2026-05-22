@@ -1,18 +1,35 @@
 import { BrowserRuntime } from "@effect/platform-browser"
 import { Duration, Effect, Schedule } from "effect"
+import { elementText } from "@/lib/html"
 import {
-  findBuyButton,
   findExpandedPackage,
-  findFirstAvailablePilih,
   findPesanButton,
-  findPilihForPriority,
-  getPagePhase,
+  findPilih,
   matchesPriority,
   setPackageQuantity,
 } from "./parse"
 
 const CATEGORY_PRIORITY = ["festival", "last forever fan", "cat 1"]
 const BUY_COUNT = 1
+
+const BUY_BUTTON_TEXT = /beli\s+tiket\s+sekarang/i
+
+const findBuyButton = () => {
+  for (const el of document.querySelectorAll("button")) {
+    if (el instanceof HTMLButtonElement && !el.disabled && BUY_BUTTON_TEXT.test(elementText(el))) {
+      return el
+    }
+  }
+  return undefined
+}
+
+const getPagePhase = () => {
+  const { pathname } = location
+  if (pathname.endsWith("/order")) return "order"
+  if (pathname.endsWith("/packages")) return "packages"
+  if (pathname.includes("/to-do/")) return "overview"
+  return undefined
+}
 
 const poll = <A>(name: string, find: () => A | undefined) =>
   Effect.sync(find).pipe(
@@ -42,7 +59,7 @@ const tryPriority = (priority: string) =>
       return true
     }
 
-    const match = findPilihForPriority(priority)
+    const match = findPilih(priority)
     if (!match) {
       yield* Effect.logInfo(`No available package for priority "${priority}"`)
       return false
@@ -82,7 +99,7 @@ const runPackages = Effect.gen(function* () {
   }
 
   yield* Effect.logInfo("Falling back to first available package")
-  const match = findFirstAvailablePilih()
+  const match = findPilih()
   if (!match) {
     yield* Effect.logInfo("No available packages, waiting...")
     return

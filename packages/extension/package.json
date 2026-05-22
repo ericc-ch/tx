@@ -1,5 +1,5 @@
 {
-  "name": "@tiket-tools/extension",
+  "name": "@tx/extension",
   "version": "0.0.0",
   "private": true,
   "description": "manifest.json description",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@effect/platform-browser": "^4.0.0-beta.66",
-    "@tiket-tools/server": "workspace:*",
+    "@tx/server": "workspace:*",
     "effect": "^4.0.0-beta.66",
     "solid-js": "^1.9.11"
   },

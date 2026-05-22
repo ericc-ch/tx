@@ -6,21 +6,6 @@ import {
   HttpServerResponse,
 } from "effect/unstable/http"
 
-const wantsPrivateNetworkAccess = (request: HttpServerRequest.HttpServerRequest) =>
-  request.headers["access-control-request-private-network"] === "true"
-
-const allowPrivateNetworkAccess = (
-  request: HttpServerRequest.HttpServerRequest,
-  response: HttpServerResponse.HttpServerResponse,
-) =>
-  wantsPrivateNetworkAccess(request)
-    ? HttpServerResponse.setHeader(
-        response,
-        "access-control-allow-private-network",
-        "true",
-      )
-    : response
-
 /** CORS for extension content scripts on public queue pages calling localhost. */
 export const corsForExtension = () =>
   HttpRouter.middleware(
@@ -28,7 +13,15 @@ export const corsForExtension = () =>
       Effect.withFiber((fiber) => {
         const request = Context.getUnsafe(fiber.context, HttpServerRequest.HttpServerRequest)
         return HttpMiddleware.cors()(httpApp).pipe(
-          Effect.map((response) => allowPrivateNetworkAccess(request, response)),
+          Effect.map((response) =>
+            request.headers["access-control-request-private-network"] === "true"
+              ? HttpServerResponse.setHeader(
+                  response,
+                  "access-control-allow-private-network",
+                  "true",
+                )
+              : response,
+          ),
         )
       }),
     { global: true },

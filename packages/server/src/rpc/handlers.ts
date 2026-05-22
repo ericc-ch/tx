@@ -1,5 +1,5 @@
 import { Context, Effect } from "effect"
-import { ServerRpcs } from "./protocol.ts"
+import { ServerRpcs } from "./schema.ts"
 import { BrowserManager } from "../lib/browser.ts"
 
 export class ServerConfig extends Context.Service<
@@ -7,7 +7,7 @@ export class ServerConfig extends Context.Service<
   {
     readonly threshold: number
   }
->()("@tiket-tools/server/ServerConfig") {}
+>()("@tx/server/ServerConfig") {}
 
 export const RpcHandlers = ServerRpcs.toLayer(
   Effect.gen(function* () {

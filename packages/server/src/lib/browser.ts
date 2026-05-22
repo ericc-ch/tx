@@ -1,7 +1,7 @@
-import { Context, Effect, FileSystem, Layer, pipe } from "effect"
+import { Context, Effect, Encoding, FileSystem, Layer, pipe, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import which from "which"
-import { generateName } from "./names.ts"
+import { INIT_PAYLOAD_PARAM } from "../rpc/schema.ts"
 
 export interface BrowserEntry {
   handle: ChildProcessSpawner.ChildProcessHandle
@@ -18,25 +18,27 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
     if (!extensionExists) {
       return yield* Effect.die(
         new Error(
-          `Built extension not found at ${extensionPath}. Run: pnpm --filter @tiket-tools/extension build`,
+          `Built extension not found at ${extensionPath}. Run: pnpm --filter @tx/extension build`,
         ),
       )
     }
 
-    const spawn = Effect.fn(function* (url: string) {
-      const name = generateName()
-      const dir = yield* fs.makeTempDirectory({ prefix: name })
+    const spawn = Effect.fn(function* (url: string, browserId: string, payload: unknown) {
+      const dir = yield* fs.makeTempDirectory({ prefix: browserId })
       yield* Effect.logInfo("Profile created at", dir)
 
-      const urlWithId = new URL(url)
-      urlWithId.searchParams.set("__browser_id", name)
+      const json = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))(payload)
+      const encoded = Encoding.encodeBase64Url(json)
 
-      const command = ChildProcess.make`${browserPath} --user-data-dir=${dir} --load-extension=${extensionPath} --no-first-run --no-default-browser-check --disable-default-apps ${urlWithId.toString()}`
+      const urlWithInit = new URL(url)
+      urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)
+
+      const command = ChildProcess.make`${browserPath} --user-data-dir=${dir} --load-extension=${extensionPath} --no-first-run --no-default-browser-check --disable-default-apps ${urlWithInit.toString()}`
       const handle = yield* spawner.spawn(command)
 
       const entry = { handle, profilePath: dir } satisfies BrowserEntry
       yield* Effect.logInfo("Browser spawned", entry)
-      browsers.set(name, entry)
+      browsers.set(browserId, entry)
 
       return entry
     })

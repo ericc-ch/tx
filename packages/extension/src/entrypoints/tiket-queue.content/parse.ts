@@ -4,24 +4,6 @@ const CUSTOM_PEOPLE_AHEAD_SELECTOR =
   "#CustomQueueSection_NumberOfPeopleAhead > span"
 const USERS_AHEAD_SELECTOR = "#MainPart_lbUsersInLineAheadOfYou"
 
-const parsePeopleAheadCount = (raw: string) => {
-  const trimmed = raw.trim()
-  if (!trimmed) return undefined
-
-  if (/^\d{1,3}(\.\d{3})+$/.test(trimmed)) {
-    return Number(trimmed.replaceAll(".", ""))
-  }
-
-  if (/^\d{1,3}(,\d{3})+$/.test(trimmed)) {
-    return Number(trimmed.replaceAll(",", ""))
-  }
-
-  const peopleAhead = Number(trimmed.replaceAll(",", ""))
-  if (!Number.isInteger(peopleAhead) || peopleAhead < 1) return undefined
-
-  return peopleAhead
-}
-
 const tryRead = (source: string, selector: string) => {
   const el = document.querySelector(selector)
   if (!(el instanceof HTMLElement)) {
@@ -36,7 +18,21 @@ const tryRead = (source: string, selector: string) => {
     }
   }
 
-  const peopleAhead = parsePeopleAheadCount(raw)
+  const trimmed = raw.trim()
+  let peopleAhead: number | undefined
+  if (trimmed) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(trimmed)) {
+      peopleAhead = Number(trimmed.replaceAll(".", ""))
+    } else if (/^\d{1,3}(,\d{3})+$/.test(trimmed)) {
+      peopleAhead = Number(trimmed.replaceAll(",", ""))
+    } else {
+      const parsed = Number(trimmed.replaceAll(",", ""))
+      if (Number.isInteger(parsed) && parsed >= 1) {
+        peopleAhead = parsed
+      }
+    }
+  }
+
   if (peopleAhead === undefined) {
     return {
       peopleAhead: undefined,

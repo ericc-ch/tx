@@ -1,6 +1,5 @@
 import { elementText, isDisplayed } from "@/lib/html"
 
-const BUY_BUTTON_TEXT = /beli\s+tiket\s+sekarang/i
 const PILIH_TEXT = /^pilih$/i
 const PESAN_TEXT = /^pesan$/i
 
@@ -11,27 +10,17 @@ const PACKAGE_LAYOUT_ROOTS = [
   '[class*="PackageSelectionDefault_package_wrapper"]',
 ]
 
-export const getPagePhase = () => {
-  const { pathname } = location
-  if (pathname.endsWith("/order")) return "order"
-  if (pathname.endsWith("/packages")) return "packages"
-  if (pathname.includes("/to-do/")) return "overview"
-  return undefined
-}
-
-export const visiblePackageRoot = () => {
+export const packageCards = () => {
+  let root: HTMLElement | undefined
   for (const selector of PACKAGE_LAYOUT_ROOTS) {
     for (const el of document.querySelectorAll(selector)) {
-      if (!(el instanceof HTMLElement)) continue
-      if (!isDisplayed(el)) continue
-      return el
+      if (el instanceof HTMLElement && isDisplayed(el)) {
+        root = el
+        break
+      }
     }
+    if (root) break
   }
-  return undefined
-}
-
-export const packageCards = () => {
-  const root = visiblePackageRoot()
   const scope = root ?? document
   return [...scope.querySelectorAll('[data-testid="package-card"]')].filter(
     (card): card is HTMLElement => card instanceof HTMLElement && isDisplayed(card),
@@ -44,20 +33,7 @@ export const matchesPriority = (title: string, priority: string) =>
 export const packageTitle = (card: Element) =>
   card.querySelector("h3")?.textContent?.trim() ?? ""
 
-export const isPackageAvailable = (card: Element) => {
-  const footer = card.querySelector('[data-testid="package-card-footer"]')
-  if (!footer) return false
-  if (footer.textContent?.includes("Terjual habis")) return false
-
-  const btn = footer.querySelector("button")
-  return (
-    btn instanceof HTMLButtonElement &&
-    !btn.disabled &&
-    PILIH_TEXT.test(elementText(btn))
-  )
-}
-
-export const pilihButtonInCard = (card: Element) => {
+const pilihButtonInCard = (card: Element) => {
   const btn = card.querySelector('[data-testid="package-card-footer"] button')
   if (!(btn instanceof HTMLButtonElement)) return undefined
   if (btn.disabled) return undefined
@@ -65,22 +41,16 @@ export const pilihButtonInCard = (card: Element) => {
   return btn
 }
 
-export const findPilihForPriority = (priority: string) => {
+export const findPilih = (priority?: string) => {
   for (const card of packageCards()) {
-    if (!isPackageAvailable(card)) continue
-    if (!matchesPriority(packageTitle(card), priority)) continue
+    if (card.querySelector('[data-testid="package-card-footer"]')?.textContent?.includes("Terjual habis")) {
+      continue
+    }
     const btn = pilihButtonInCard(card)
     if (!btn) continue
-    return { button: btn, title: packageTitle(card) }
-  }
-  return undefined
-}
-
-export const findFirstAvailablePilih = () => {
-  for (const card of packageCards()) {
-    if (!isPackageAvailable(card)) continue
-    const btn = pilihButtonInCard(card)
-    if (!btn) continue
+    if (priority && !matchesPriority(packageTitle(card), priority)) {
+      continue
+    }
     return { button: btn, title: packageTitle(card) }
   }
   return undefined
@@ -116,16 +86,6 @@ export const setPackageQuantity = (count: number) => {
   input.dispatchEvent(new Event("change", { bubbles: true }))
 
   return Number(input.value) === count
-}
-
-export const findBuyButton = () => {
-  for (const el of document.querySelectorAll("button")) {
-    if (!(el instanceof HTMLButtonElement)) continue
-    if (el.disabled) continue
-    if (!BUY_BUTTON_TEXT.test(elementText(el))) continue
-    return el
-  }
-  return undefined
 }
 
 export const findPesanButton = () => {
