@@ -1,36 +1,15 @@
 import { BrowserRuntime } from "@effect/platform-browser"
-import { Effect, Encoding, Option, Result, Schema } from "effect"
+import { Effect, Encoding, pipe, Result, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { browser } from "wxt/browser"
 import { storage } from "wxt/utils/storage"
 import { INIT_PAYLOAD_PARAM } from "@tx/server/schema"
-
-const captureConfigFromUrl = (urlStr: string) => {
-  try {
-    const url = new URL(urlStr)
-    const encoded = url.searchParams.get(INIT_PAYLOAD_PARAM)
-    if (!encoded) return null
-
-    const result = Encoding.decodeBase64UrlString(encoded)
-    if (Result.isSuccess(result)) {
-      return Schema.decodeSync(Schema.fromJsonString(Schema.Unknown))(result.success)
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-
-const persistConfig = async (config: unknown) => {
-  await storage.setItem("local:config", config)
-}
+import { RpcForwardMessage } from "@/lib/protocol"
 
 const getPort = async () => {
   const config = await storage.getItem("local:config")
-  return Schema.decodeUnknownOption(Schema.Struct({ port: Schema.Number }))(config).pipe(
-    Option.map((c) => c.port),
-    Option.getOrUndefined,
-  )
+  const schema = Schema.Struct({ port: Schema.Number })
+  return Schema.is(schema)(config) ? config.port : undefined
 }
 
 const main = Effect.gen(function* () {
@@ -39,33 +18,43 @@ const main = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient
 
   yield* Effect.sync(() => {
-    browser.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
-      const url = changeInfo.url || tab.url
-      if (url) {
-        const config = captureConfigFromUrl(url)
-        if (config) {
-          Effect.tryPromise(() => persistConfig(config)).pipe(
-            Effect.tap(() =>
-              Effect.logInfo(`Captured and persisted config: ${JSON.stringify(config)}`),
-            ),
-            Effect.catch((err) => Effect.logError("Failed to persist config", err)),
-            Effect.runFork,
-          )
-        }
-      }
+    browser.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
+      const url = changeInfo.url ?? tab.url
+      if (!url) return
+
+      const parsedUrl = new URL(url)
+      const encoded = parsedUrl.searchParams.get(INIT_PAYLOAD_PARAM)
+      if (!encoded) return
+
+      const result = Encoding.decodeBase64UrlString(encoded)
+      const config = Schema.decodeSync(Schema.fromJsonString(Schema.Unknown))(
+        Result.getOrThrow(result),
+      )
+
+      pipe(
+        () => storage.setItem("local:config", config),
+        Effect.tryPromise,
+        Effect.tap(() =>
+          Effect.logInfo(`Captured and persisted config: ${JSON.stringify(config)}`),
+        ),
+        Effect.catch((err) => Effect.logError("Failed to persist config", err)),
+        Effect.runFork,
+      )
     })
   })
 
   yield* Effect.sync(() => {
-    browser.runtime.onMessage.addListener((wire, _sender, sendResponse) => {
-      if (typeof wire !== "string") return
+    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      if (!Schema.is(RpcForwardMessage)(message)) return
 
-      const runMessageForwarding = Effect.gen(function* () {
+      const { message: payload } = message
+
+      const forward = Effect.gen(function* () {
         const port = (yield* Effect.tryPromise(() => getPort())) ?? 8211
-        const dynamicRpcUrl = `http://127.0.0.1:${port}/rpc`
+        const url = `http://localhost:${port}/rpc`
 
-        const request = HttpClientRequest.post(dynamicRpcUrl).pipe(
-          HttpClientRequest.bodyText(wire, "application/ndjson"),
+        const request = HttpClientRequest.post(url).pipe(
+          HttpClientRequest.bodyText(payload, "application/ndjson"),
         )
 
         const responseText = yield* httpClient.execute(request).pipe(
@@ -82,7 +71,7 @@ const main = Effect.gen(function* () {
       })
 
       // Run the message forwarding fiber in the background
-      Effect.runFork(runMessageForwarding)
+      Effect.runFork(forward)
 
       return true // Keep sendResponse open for async response
     })

@@ -4,7 +4,6 @@ export const isVisible = (el: HTMLElement) => {
   return style.display !== "none" && style.visibility !== "hidden"
 }
 
-/** Hidden responsive layouts (mobile/desktop duplicates) often stay in DOM with zero size. */
 export const isDisplayed = (el: HTMLElement) => {
   if (!isVisible(el)) return false
   const { width, height } = el.getBoundingClientRect()
