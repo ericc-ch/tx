@@ -1,7 +1,7 @@
-import { Context, Effect, Encoding, FileSystem, Layer, pipe, Schema } from "effect"
+import { Context, Effect, FileSystem, Layer, pipe, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import which from "which"
-import { INIT_PAYLOAD_PARAM } from "../rpc/schema.ts"
+import { INIT_PAYLOAD_PARAM, InitPayload, InitPayloadFromUrlParam } from "../rpc/schema.ts"
 
 export interface BrowserEntry {
   handle: ChildProcessSpawner.ChildProcessHandle
@@ -23,12 +23,15 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       )
     }
 
-    const spawn = Effect.fn(function* (url: string, browserId: string, payload: unknown) {
+    const spawn = Effect.fn(function* (
+      url: string,
+      browserId: string,
+      payload: typeof InitPayload.Type,
+    ) {
       const dir = yield* fs.makeTempDirectory({ prefix: browserId })
       yield* Effect.logInfo("Profile created at", dir)
 
-      const json = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))(payload)
-      const encoded = Encoding.encodeBase64Url(json)
+      const encoded = Schema.encodeSync(InitPayloadFromUrlParam)(payload)
 
       const urlWithInit = new URL(url)
       urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)

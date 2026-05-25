@@ -1,25 +1,17 @@
-import { MessageRpcClientLayer } from "@/lib/protocol"
+import { getBrowserId } from "@/lib/config"
+import { ContentScriptLive } from "@/lib/content-script-live"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { ServerRpcs } from "@tx/server/schema"
-import { Duration, Effect, Option, Schedule, Schema } from "effect"
+import { Duration, Effect, Schedule } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
-import { storage } from "wxt/utils/storage"
 import { readPeopleAhead } from "./parse"
-
-const getBrowserId = async () => {
-  const config = await storage.getItem("local:config")
-  return Schema.decodeUnknownOption(Schema.Struct({ browserId: Schema.String }))(config).pipe(
-    Option.map((c) => c.browserId),
-    Option.getOrUndefined,
-  )
-}
 
 const main = Effect.gen(function* () {
   const client = yield* RpcClient.make(ServerRpcs)
 
   yield* Effect.logInfo("Starting queue position reporter")
 
-  const browserId = yield* Effect.promise(() => getBrowserId()).pipe(Effect.map((id) => id ?? ""))
+  const browserId = yield* getBrowserId()
 
   const position = yield* Effect.sync(() => readPeopleAhead()).pipe(
     Effect.tap((read) =>
@@ -58,6 +50,6 @@ const main = Effect.gen(function* () {
 export default defineContentScript({
   matches: ["*://queue.tiket.com/*", "*://localhost/*"],
   main() {
-    main.pipe(Effect.provide(MessageRpcClientLayer), BrowserRuntime.runMain)
+    main.pipe(Effect.provide(ContentScriptLive), BrowserRuntime.runMain)
   },
 })
