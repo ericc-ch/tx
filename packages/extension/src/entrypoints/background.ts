@@ -44,12 +44,12 @@ const main = Effect.gen(function* () {
   })
 
   yield* Effect.sync(() => {
-    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (!Schema.is(RpcForwardMessage)(message)) return
+    browser.runtime.onMessage.addListener((message) => {
+      if (!Schema.is(RpcForwardMessage)(message)) return false
 
       const { message: payload } = message
 
-      const forward = Effect.gen(function* () {
+      return Effect.gen(function* () {
         const port = (yield* Effect.tryPromise(() => getPort())) ?? 8211
         const url = `http://localhost:${port}/rpc`
 
@@ -67,13 +67,8 @@ const main = Effect.gen(function* () {
           ),
         )
 
-        sendResponse(responseText || undefined)
-      })
-
-      // Run the message forwarding fiber in the background
-      Effect.runFork(forward)
-
-      return true // Keep sendResponse open for async response
+        return responseText
+      }).pipe(Effect.runPromise)
     })
   })
 })
