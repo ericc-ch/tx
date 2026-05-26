@@ -15,4 +15,4 @@ const remoteLogger = Effect.gen(function* () {
   })
 })
 
-export const RemoteLoggerLayer = Logger.layer([remoteLogger])
+export const RemoteLoggerLayer = Logger.layer([remoteLogger], { mergeWithExisting: true })
