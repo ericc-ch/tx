@@ -71,7 +71,7 @@ const tiketCommand = Command.make(
 ).pipe(
   Command.withDescription("Start tiket server and spawn browser"),
   Command.provide(({ browserPath, extensionPath }) =>
-    BrowserManager.layer(extensionPath, browserPath),
+    BrowserManager.layer({ browserPath, extensionPath }),
   ),
 )
 

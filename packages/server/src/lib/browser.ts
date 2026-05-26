@@ -8,6 +8,11 @@ interface BrowserEntry {
   profilePath: string
 }
 
+interface BrowserManagerOptions {
+  browserPath: string
+  extensionPath: string
+}
+
 const randomBrowserId = () => {
   const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
   const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
@@ -15,7 +20,7 @@ const randomBrowserId = () => {
 }
 
 export class BrowserManager extends Context.Service<BrowserManager>()("BrowserManager", {
-  make: Effect.fn(function* (browserPath: string, extensionPath: string) {
+  make: Effect.fn(function* ({ browserPath, extensionPath }: BrowserManagerOptions) {
     const fs = yield* FileSystem.FileSystem
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const browsers = new Map<string, BrowserEntry>()
@@ -84,6 +89,6 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
     return { spawn, kill }
   }),
 }) {
-  static layer = (extensionPath: string, browserPath: string) =>
-    Layer.effect(this, this.make(browserPath, extensionPath))
+  static layer = (options: BrowserManagerOptions) =>
+    Layer.effect(this, this.make(options))
 }
