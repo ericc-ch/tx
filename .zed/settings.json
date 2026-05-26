@@ -11,7 +11,7 @@
     "oxlint": {
       "initialization_options": {
         "settings": {
-          "typeAware": true
+          "typeAware": false
         }
       }
     }
