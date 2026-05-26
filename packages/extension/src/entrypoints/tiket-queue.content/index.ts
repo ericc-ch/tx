@@ -1,5 +1,5 @@
-import { getBrowserId } from "@/lib/config"
-import { ContentScriptLive } from "@/lib/content-script-live"
+import { Config } from "@/lib/config"
+import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { ServerRpcs } from "@tx/server/schema"
 import { Duration, Effect, Schedule } from "effect"
@@ -11,7 +11,8 @@ const main = Effect.gen(function* () {
 
   yield* Effect.logInfo("Starting queue position reporter")
 
-  const browserId = yield* getBrowserId()
+  const config = yield* Config
+  const { browserId } = yield* config.get()
 
   const position = yield* Effect.sync(() => readPeopleAhead()).pipe(
     Effect.tap((read) =>
@@ -50,6 +51,6 @@ const main = Effect.gen(function* () {
 export default defineContentScript({
   matches: ["*://queue.tiket.com/*", "*://localhost/*"],
   main() {
-    main.pipe(Effect.provide(ContentScriptLive), BrowserRuntime.runMain)
+    main.pipe(Effect.provide(ContentLive), BrowserRuntime.runMain)
   },
 })

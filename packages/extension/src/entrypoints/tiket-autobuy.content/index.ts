@@ -1,4 +1,4 @@
-import { ContentScriptLive } from "@/lib/content-script-live"
+import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { Duration, Effect, Schedule } from "effect"
 import { elementText } from "@/lib/html"
@@ -153,6 +153,6 @@ const main = Effect.gen(function* () {
 export default defineContentScript({
   matches: ["*://www.tiket.com/*", "*://localhost/*"],
   main() {
-    main.pipe(Effect.provide(ContentScriptLive), BrowserRuntime.runMain)
+    main.pipe(Effect.provide(ContentLive), BrowserRuntime.runMain)
   },
 })
