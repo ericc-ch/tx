@@ -11,9 +11,19 @@ export const isDisplayed = (el: HTMLElement) => {
 }
 
 export const elementText = (el: HTMLElement) => {
-  if (!isVisible(el)) return ""
+  if (!isDisplayed(el)) return ""
 
   const inner = "innerText" in el ? el.innerText : undefined
   if (inner?.trim()) return inner.trim()
   return el.textContent?.trim() ?? ""
+}
+
+export const findDisplayedByText = (elements: Iterable<Element>, pattern: RegExp) => {
+  for (const el of elements) {
+    if (!(el instanceof HTMLElement)) continue
+    if (el instanceof HTMLButtonElement && el.disabled) continue
+    if (!pattern.test(elementText(el))) continue
+    return el
+  }
+  return undefined
 }

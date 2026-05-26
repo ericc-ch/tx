@@ -1,97 +1,88 @@
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
-import { Duration, Effect, Schedule } from "effect"
-import { elementText } from "@/lib/html"
-import {
-  findExpandedPackage,
-  findPesanButton,
-  findPilih,
-  matchesPriority,
-  setPackageQuantity,
-} from "./parse"
+import { Duration, Effect } from "effect"
+import { readAutobuyPage, setExpandedQuantity, type PackageOption } from "./parse"
 
 const CATEGORY_PRIORITY = ["festival", "last forever fan", "cat 1"]
 const BUY_COUNT = 1
 
-const BUY_BUTTON_TEXT = /beli\s+tiket\s+sekarang/i
+const matchesPriority = (title: string, priority: string) =>
+  title.toLowerCase().includes(priority.toLowerCase())
 
-const findBuyButton = () => {
-  for (const el of document.querySelectorAll("button")) {
-    if (el instanceof HTMLButtonElement && !el.disabled && BUY_BUTTON_TEXT.test(elementText(el))) {
-      return el
-    }
-  }
-  return undefined
-}
-
-const getPagePhase = () => {
-  const { pathname } = location
-  if (pathname.endsWith("/order")) return "order"
-  if (pathname.endsWith("/packages")) return "packages"
-  if (pathname.includes("/to-do/")) return "overview"
-  return undefined
-}
-
-const poll = <A>(name: string, find: () => A | undefined) =>
-  Effect.sync(find).pipe(
-    Effect.tap((value) =>
-      value ? Effect.logInfo(`Found ${name}`) : Effect.logInfo(`${name} not found, retrying...`),
-    ),
-    Effect.repeat({
-      until: (value): value is NonNullable<A> => value !== undefined,
-      schedule: Schedule.spaced(Duration.millis(20)),
-    }),
+const availablePackage = (packages: PackageOption[], priority?: string) =>
+  packages.find(
+    (pkg) =>
+      !pkg.soldOut &&
+      pkg.pilihButton &&
+      (!priority || matchesPriority(pkg.title, priority)),
   )
 
-const tryPriority = (priority: string) =>
+const orderExpanded = (title: string, logSuffix = "") =>
   Effect.gen(function* () {
-    const expanded = findExpandedPackage()
-    if (expanded && matchesPriority(expanded.title, priority)) {
-      if (!setPackageQuantity(BUY_COUNT)) {
-        yield* Effect.logInfo(
-          `Cannot set quantity ${BUY_COUNT} for "${expanded.title}", trying next priority`,
-        )
-        return false
-      }
+    const page = readAutobuyPage()
+    const input = page.phase === "packages" ? page.expanded?.quantityInput : undefined
+    if (!input) return false
 
-      const pesan = yield* poll("Pesan button", findPesanButton)
-      pesan.click()
-      yield* Effect.logInfo(`Ordered ${BUY_COUNT} from "${expanded.title}"`)
-      return true
-    }
-
-    const match = findPilih(priority)
-    if (!match) {
-      yield* Effect.logInfo(`No available package for priority "${priority}"`)
-      return false
-    }
-
-    match.button.click()
-    yield* Effect.logInfo(`Clicked Pilih for "${match.title}"`)
-
-    const pkg = yield* poll("expanded package", () => {
-      const expanded = findExpandedPackage()
-      if (!expanded || !matchesPriority(expanded.title, priority)) return undefined
-      return expanded
-    })
-
-    if (!setPackageQuantity(BUY_COUNT)) {
+    if (!setExpandedQuantity(input, BUY_COUNT)) {
       yield* Effect.logInfo(
-        `Quantity ${BUY_COUNT} not available for "${pkg.title}", trying next priority`,
+        `Quantity ${BUY_COUNT} not available for "${title}"${logSuffix}`,
       )
       return false
     }
 
-    const pesan = yield* poll("Pesan button", findPesanButton)
-    pesan.click()
-    yield* Effect.logInfo(`Ordered ${BUY_COUNT} from "${pkg.title}"`)
-    return true
+    while (true) {
+      const next = readAutobuyPage()
+      const pesan = next.phase === "packages" ? next.pesanButton : undefined
+      if (pesan) {
+        pesan.click()
+        yield* Effect.logInfo(`Ordered ${BUY_COUNT} from "${title}"${logSuffix}`)
+        return true
+      }
+      yield* Effect.sleep(Duration.millis(20))
+    }
+  })
+
+const tryPriority = (priority: string) =>
+  Effect.gen(function* () {
+    const page = readAutobuyPage()
+    if (page.phase !== "packages") return false
+
+    if (page.expanded && matchesPriority(page.expanded.title, priority)) {
+      return yield* orderExpanded(page.expanded.title)
+    }
+
+    const match = availablePackage(page.packages, priority)
+    if (!match?.pilihButton) {
+      yield* Effect.logInfo(`No available package for priority "${priority}"`)
+      return false
+    }
+
+    match.pilihButton.click()
+    yield* Effect.logInfo(`Clicked Pilih for "${match.title}"`)
+
+    while (true) {
+      const next = readAutobuyPage()
+      const expanded =
+        next.phase === "packages" &&
+        next.expanded &&
+        matchesPriority(next.expanded.title, priority)
+          ? next.expanded
+          : undefined
+      if (expanded) return yield* orderExpanded(expanded.title)
+      yield* Effect.sleep(Duration.millis(20))
+    }
   })
 
 const runOverview = Effect.gen(function* () {
-  const button = yield* poll("buy button", findBuyButton)
-  button.click()
-  yield* Effect.logInfo('Clicked "Beli tiket sekarang"')
+  while (true) {
+    const page = readAutobuyPage()
+    if (page.phase === "overview" && page.buyButton) {
+      page.buyButton.click()
+      yield* Effect.logInfo('Clicked "Beli tiket sekarang"')
+      return
+    }
+    yield* Effect.sleep(Duration.millis(20))
+  }
 })
 
 const runPackages = Effect.gen(function* () {
@@ -100,29 +91,31 @@ const runPackages = Effect.gen(function* () {
   }
 
   yield* Effect.logInfo("Falling back to first available package")
-  const match = findPilih()
-  if (!match) {
+  const page = readAutobuyPage()
+  if (page.phase !== "packages") return
+
+  const match = availablePackage(page.packages)
+  if (!match?.pilihButton) {
     yield* Effect.logInfo("No available packages, waiting...")
     return
   }
 
-  match.button.click()
+  match.pilihButton.click()
   yield* Effect.logInfo(`Clicked Pilih for "${match.title}" (fallback)`)
 
-  const pkg = yield* poll("expanded package", findExpandedPackage)
-
-  if (!setPackageQuantity(BUY_COUNT)) {
-    yield* Effect.logInfo(`Quantity ${BUY_COUNT} not available for "${pkg.title}" (fallback)`)
-    return
+  while (true) {
+    const next = readAutobuyPage()
+    const expanded = next.phase === "packages" ? next.expanded : undefined
+    if (expanded) {
+      yield* orderExpanded(expanded.title, " (fallback)")
+      return
+    }
+    yield* Effect.sleep(Duration.millis(20))
   }
-
-  const pesan = yield* poll("Pesan button", findPesanButton)
-  pesan.click()
-  yield* Effect.logInfo(`Ordered ${BUY_COUNT} from "${pkg.title}" (fallback)`)
 })
 
 const runStep = Effect.gen(function* () {
-  const phase = getPagePhase()
+  const { phase } = readAutobuyPage()
   yield* Effect.logInfo(`Autobuy step (phase: ${phase ?? "unknown"})`)
 
   switch (phase) {

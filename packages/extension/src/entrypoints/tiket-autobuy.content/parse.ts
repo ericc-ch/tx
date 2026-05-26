@@ -1,5 +1,6 @@
-import { elementText, isDisplayed } from "@/lib/html"
+import { findDisplayedByText, isDisplayed } from "@/lib/html"
 
+const BUY_BUTTON_TEXT = /beli\s+tiket\s+sekarang/i
 const PILIH_TEXT = /^pilih$/i
 const PESAN_TEXT = /^pesan$/i
 
@@ -10,7 +11,44 @@ const PACKAGE_LAYOUT_ROOTS = [
   '[class*="PackageSelectionDefault_package_wrapper"]',
 ]
 
-export const packageCards = () => {
+export type AutobuyPage =
+  | { phase: "overview"; buyButton?: HTMLButtonElement }
+  | {
+      phase: "packages"
+      packages: PackageOption[]
+      expanded?: ExpandedSelection
+      pesanButton?: HTMLButtonElement
+    }
+  | { phase: "order" }
+  | { phase: undefined }
+
+export type PackageOption = {
+  title: string
+  soldOut: boolean
+  pilihButton?: HTMLButtonElement
+}
+
+export type ExpandedSelection = {
+  title: string
+  quantityInput: HTMLInputElement
+  min: number
+  max?: number
+}
+
+const getPagePhase = () => {
+  const { pathname } = location
+  if (pathname.endsWith("/order")) return "order" as const
+  if (pathname.endsWith("/packages")) return "packages" as const
+  if (pathname.includes("/to-do/")) return "overview" as const
+  return undefined
+}
+
+const findBuyButton = () => {
+  const el = findDisplayedByText(document.querySelectorAll("button"), BUY_BUTTON_TEXT)
+  return el instanceof HTMLButtonElement ? el : undefined
+}
+
+const packageCards = () => {
   let root: HTMLElement | undefined
   for (const selector of PACKAGE_LAYOUT_ROOTS) {
     for (const el of document.querySelectorAll(selector)) {
@@ -27,38 +65,30 @@ export const packageCards = () => {
   )
 }
 
-export const matchesPriority = (title: string, priority: string) =>
-  title.toLowerCase().includes(priority.toLowerCase())
-
-export const packageTitle = (card: Element) =>
-  card.querySelector("h3")?.textContent?.trim() ?? ""
+const packageTitle = (card: Element) => card.querySelector("h3")?.textContent?.trim() ?? ""
 
 const pilihButtonInCard = (card: Element) => {
-  const btn = card.querySelector('[data-testid="package-card-footer"] button')
-  if (!(btn instanceof HTMLButtonElement)) return undefined
-  if (btn.disabled) return undefined
-  if (!PILIH_TEXT.test(elementText(btn))) return undefined
-  return btn
+  const btn = findDisplayedByText(
+    card.querySelectorAll('[data-testid="package-card-footer"] button'),
+    PILIH_TEXT,
+  )
+  return btn instanceof HTMLButtonElement ? btn : undefined
 }
 
-export const findPilih = (priority?: string) => {
-  for (const card of packageCards()) {
-    if (card.querySelector('[data-testid="package-card-footer"]')?.textContent?.includes("Terjual habis")) {
-      continue
+const readPackageOptions = (): PackageOption[] =>
+  packageCards().map((card) => {
+    const soldOut = card
+      .querySelector('[data-testid="package-card-footer"]')
+      ?.textContent?.includes("Terjual habis")
+    const option: PackageOption = { title: packageTitle(card), soldOut: !!soldOut }
+    if (!soldOut) {
+      const pilihButton = pilihButtonInCard(card)
+      if (pilihButton) option.pilihButton = pilihButton
     }
-    const btn = pilihButtonInCard(card)
-    if (!btn) continue
-    if (priority && !matchesPriority(packageTitle(card), priority)) {
-      continue
-    }
-    return { button: btn, title: packageTitle(card) }
-  }
-  return undefined
-}
+    return option
+  })
 
-export const findExpandedPackage = () => {
-  if (!findPesanButton()) return undefined
-
+const readExpandedSelection = (): ExpandedSelection | undefined => {
   for (const input of document.querySelectorAll('input[type="number"]')) {
     if (!(input instanceof HTMLInputElement)) continue
     if (!isDisplayed(input)) continue
@@ -66,16 +96,49 @@ export const findExpandedPackage = () => {
     const card = input.closest('[data-testid="package-card"]')
     if (!(card instanceof HTMLElement) || !isDisplayed(card)) continue
 
-    return { input, title: packageTitle(card) }
+    const max = Number(input.max)
+    const selection: ExpandedSelection = {
+      title: packageTitle(card),
+      quantityInput: input,
+      min: Number(input.min) || 1,
+    }
+    if (Number.isFinite(max)) selection.max = max
+    return selection
   }
   return undefined
 }
 
-export const setPackageQuantity = (count: number) => {
-  const expanded = findExpandedPackage()
-  if (!expanded) return false
+const findPesanButton = () => {
+  const el = findDisplayedByText(document.querySelectorAll("button"), PESAN_TEXT)
+  return el instanceof HTMLButtonElement ? el : undefined
+}
 
-  const { input } = expanded
+export const readAutobuyPage = (): AutobuyPage => {
+  const phase = getPagePhase()
+
+  switch (phase) {
+    case "overview": {
+      const buyButton = findBuyButton()
+      return buyButton ? { phase, buyButton } : { phase }
+    }
+    case "packages": {
+      const expanded = readExpandedSelection()
+      const pesanButton = findPesanButton()
+      return {
+        phase,
+        packages: readPackageOptions(),
+        ...(expanded ? { expanded } : {}),
+        ...(pesanButton ? { pesanButton } : {}),
+      }
+    }
+    case "order":
+      return { phase }
+    default:
+      return { phase: undefined }
+  }
+}
+
+export const setExpandedQuantity = (input: HTMLInputElement, count: number) => {
   const max = Number(input.max)
   const min = Number(input.min) || 1
   if (!Number.isFinite(count) || count < min) return false
@@ -86,14 +149,4 @@ export const setPackageQuantity = (count: number) => {
   input.dispatchEvent(new Event("change", { bubbles: true }))
 
   return Number(input.value) === count
-}
-
-export const findPesanButton = () => {
-  for (const el of document.querySelectorAll("button")) {
-    if (!(el instanceof HTMLButtonElement)) continue
-    if (el.disabled) continue
-    if (!PESAN_TEXT.test(elementText(el))) continue
-    return el
-  }
-  return undefined
 }
