@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { NodeHttpServer, NodeRuntime, NodeServices } from "@effect/platform-node"
-import { Effect, Layer, Option } from "effect"
+import { Effect, Layer } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
 import os from "node:os"
 import { HttpRouter, HttpServer } from "effect/unstable/http"
@@ -12,7 +12,6 @@ import { RpcHandlers, ServerConfig } from "./rpc/handlers.ts"
 import { ServerRpcs } from "./rpc/schema.ts"
 import { BrowserManager } from "./lib/browser.ts"
 import { corsForExtension } from "./lib/cors.ts"
-import words from "./assets/words.json" with { type: "json" }
 
 const Rpc = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol: "http" }).pipe(
   Layer.provide(RpcHandlers),
@@ -39,8 +38,7 @@ const tiketCommand = Command.make(
       Flag.withDefault(5000),
     ),
     browserPath: Flag.string("browser-path").pipe(
-      Flag.withDescription("Path to browser executable (default: helium on PATH)"),
-      Flag.optional,
+      Flag.withDescription("Path to browser executable"),
     ),
     extensionPath: Flag.string("extension-path").pipe(
       Flag.withDescription("Path to built extension directory"),
@@ -56,12 +54,7 @@ const tiketCommand = Command.make(
         const browser = yield* BrowserManager
         const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
         yield* Effect.all(
-          Array.from({ length: count }, () => {
-            const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
-            const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
-            const browserId = `${adjective}-${noun}`
-            return browser.spawn(url, browserId, { browserId, port })
-          }),
+          Array.from({ length: count }, () => browser.spawn({ url, port })),
           { concurrency: parallelism },
         )
         return yield* Effect.never
@@ -78,7 +71,7 @@ const tiketCommand = Command.make(
 ).pipe(
   Command.withDescription("Start tiket server and spawn browser"),
   Command.provide(({ browserPath, extensionPath }) =>
-    BrowserManager.layer(extensionPath, Option.getOrUndefined(browserPath)),
+    BrowserManager.layer(extensionPath, browserPath),
   ),
 )
 

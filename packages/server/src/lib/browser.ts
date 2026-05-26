@@ -1,11 +1,17 @@
 import { Context, Effect, FileSystem, Layer, pipe, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
-import which from "which"
-import { INIT_PAYLOAD_PARAM, InitPayload, InitPayloadFromUrlParam } from "../rpc/schema.ts"
+import words from "../assets/words.json" with { type: "json" }
+import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "../rpc/schema.ts"
 
-export interface BrowserEntry {
+interface BrowserEntry {
   handle: ChildProcessSpawner.ChildProcessHandle
   profilePath: string
+}
+
+const randomBrowserId = () => {
+  const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
+  const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
+  return `${adjective}-${noun}`
 }
 
 export class BrowserManager extends Context.Service<BrowserManager>()("BrowserManager", {
@@ -23,15 +29,26 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       )
     }
 
-    const spawn = Effect.fn(function* (
-      url: string,
-      browserId: string,
-      payload: typeof InitPayload.Type,
-    ) {
-      const dir = yield* fs.makeTempDirectory({ prefix: browserId })
-      yield* Effect.logInfo("Profile created at", dir)
+    const removeProfile = (profilePath: string) =>
+      pipe(
+        fs.remove(profilePath, { recursive: true, force: true }),
+        Effect.catchTag("PlatformError", (err) => Effect.logError("Failed to remove profile", err)),
+      )
 
-      const encoded = Schema.encodeSync(InitPayloadFromUrlParam)(payload)
+    const allocateBrowserId = () => {
+      let browserId = randomBrowserId()
+      while (browsers.has(browserId)) {
+        browserId = randomBrowserId()
+      }
+      return browserId
+    }
+
+    const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
+      const browserId = allocateBrowserId()
+      const dir = yield* fs.makeTempDirectory({ prefix: browserId })
+      yield* Effect.logInfo(`Profile created for ${browserId} at`, dir)
+
+      const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({ browserId, port })
 
       const urlWithInit = new URL(url)
       urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)
@@ -40,57 +57,33 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       const handle = yield* spawner.spawn(command)
 
       const entry = { handle, profilePath: dir } satisfies BrowserEntry
-      yield* Effect.logInfo("Browser spawned", entry)
       browsers.set(browserId, entry)
+      yield* Effect.logInfo(`Browser spawned ${browserId}`, entry)
 
-      return entry
+      return browserId
     })
 
-    const kill = Effect.fn(function* (name: string) {
-      const entry = browsers.get(name)
-      if (entry) {
-        yield* entry.handle.kill()
-        yield* fs
-          .remove(entry.profilePath, { recursive: true, force: true })
-          .pipe(
-            Effect.catchTag("PlatformError", (err) =>
-              Effect.logError("Failed to remove profile", err),
-            ),
-          )
-        browsers.delete(name)
-      }
+    const kill = Effect.fn(function* (browserId: string) {
+      const entry = browsers.get(browserId)
+      if (!entry) return
+
+      yield* entry.handle.kill()
+      yield* removeProfile(entry.profilePath)
+      browsers.delete(browserId)
     })
 
     yield* Effect.addFinalizer(
       Effect.fn(function* () {
-        for (const [name, entry] of browsers.entries()) {
-          yield* Effect.logInfo("Cleaning up browser profile", name)
-          yield* fs
-            .remove(entry.profilePath, { recursive: true, force: true })
-            .pipe(
-              Effect.catchTag("PlatformError", (err) =>
-                Effect.logError("Failed to remove profile", err),
-              ),
-            )
+        for (const [browserId, entry] of browsers.entries()) {
+          yield* Effect.logInfo(`Cleaning up browser profile ${browserId}`)
+          yield* removeProfile(entry.profilePath)
         }
       }),
     )
 
-    return {
-      spawn,
-      kill,
-      browsers,
-    }
+    return { spawn, kill }
   }),
 }) {
-  static layer = (extensionPath: string, browserPath?: string) =>
-    Layer.effect(
-      this,
-      browserPath !== undefined
-        ? this.make(browserPath, extensionPath)
-        : pipe(
-            Effect.promise(() => which("helium")),
-            Effect.andThen((path) => this.make(path, extensionPath)),
-          ),
-    )
+  static layer = (extensionPath: string, browserPath: string) =>
+    Layer.effect(this, this.make(browserPath, extensionPath))
 }
