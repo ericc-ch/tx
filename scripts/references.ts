@@ -22,6 +22,11 @@ const repositories = [
     directory: "wxt",
     url: "https://github.com/wxt-dev/wxt.git",
   },
+  {
+    name: "Playwright",
+    directory: "playwright",
+    url: "https://github.com/microsoft/playwright.git",
+  },
 ] satisfies ReadonlyArray<ReferenceRepository>
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))

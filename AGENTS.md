@@ -1,3 +1,5 @@
+This project, tx, is a browser automation split into server/extension architecture to bypass bot detection and utilize a normal browser extension.
+
 Use pnpm as package manager.
 Run `pnpm run check` after completing a task (typecheck per package, `vitest` at workspace root, lint and format at workspace root).
 

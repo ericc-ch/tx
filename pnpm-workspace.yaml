@@ -2,7 +2,7 @@ packages:
   - "packages/*"
 
 allowBuilds:
-  esbuild: true
+  esbuild: false
   msgpackr-extract: false
-  simple-git-hooks: true
-  spawn-sync: true
+  simple-git-hooks: false
+  spawn-sync: false
