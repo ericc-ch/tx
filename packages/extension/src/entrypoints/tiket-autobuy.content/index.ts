@@ -1,4 +1,4 @@
-import { findDisplayedByText, isDisplayed } from "@/lib/html"
+import { Locator, Page } from "@/lib/playwlite"
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { Duration, Effect } from "effect"
@@ -14,26 +14,15 @@ const PACKAGE_LAYOUT_ROOTS = [
   '[class*="PackageSelectionDefault_package_wrapper"]',
 ]
 
-type AutobuyPage =
-  | { phase: "overview"; buyButton?: HTMLButtonElement }
-  | {
-      phase: "packages"
-      packages: PackageOption[]
-      expanded?: ExpandedSelection
-      pesanButton?: HTMLButtonElement
-    }
-  | { phase: "order" }
-  | { phase: undefined }
-
 type PackageOption = {
   title: string
   soldOut: boolean
-  pilihButton?: HTMLButtonElement
+  pilihButton?: Locator
 }
 
 type ExpandedSelection = {
   title: string
-  quantityInput: HTMLInputElement
+  quantityInput: Locator
   min: number
   max?: number
 }
@@ -46,113 +35,127 @@ const getPagePhase = () => {
   return undefined
 }
 
-const findBuyButton = () => {
-  const el = findDisplayedByText(document.querySelectorAll("button"), BUY_BUTTON_TEXT)
-  return el instanceof HTMLButtonElement ? el : undefined
-}
-
-const packageCards = () => {
-  let root: HTMLElement | undefined
-  for (const selector of PACKAGE_LAYOUT_ROOTS) {
-    for (const el of document.querySelectorAll(selector)) {
-      if (el instanceof HTMLElement && isDisplayed(el)) {
-        root = el
-        break
-      }
-    }
-    if (root) break
-  }
-  const scope = root ?? document
-  return [...scope.querySelectorAll('[data-testid="package-card"]')].filter(
-    (card): card is HTMLElement => card instanceof HTMLElement && isDisplayed(card),
-  )
-}
-
-const packageTitle = (card: Element) => card.querySelector("h3")?.textContent?.trim() ?? ""
-
-const pilihButtonInCard = (card: Element) => {
-  const btn = findDisplayedByText(
-    card.querySelectorAll('[data-testid="package-card-footer"] button'),
-    PILIH_TEXT,
-  )
-  return btn instanceof HTMLButtonElement ? btn : undefined
-}
-
-const readPackageOptions = (): PackageOption[] =>
-  packageCards().map((card) => {
-    const soldOut = card
-      .querySelector('[data-testid="package-card-footer"]')
-      ?.textContent?.includes("Terjual habis")
-    const option: PackageOption = { title: packageTitle(card), soldOut: !!soldOut }
-    if (!soldOut) {
-      const pilihButton = pilihButtonInCard(card)
-      if (pilihButton) option.pilihButton = pilihButton
-    }
-    return option
+const firstLocator = (locator: Locator) =>
+  Effect.gen(function* () {
+    return (yield* locator.count()) > 0 ? locator.first() : undefined
   })
 
-const readExpandedSelection = (): ExpandedSelection | undefined => {
-  for (const input of document.querySelectorAll('input[type="number"]')) {
-    if (!(input instanceof HTMLInputElement)) continue
-    if (!isDisplayed(input)) continue
+const textContent = (locator: Locator) =>
+  Effect.gen(function* () {
+    const match = yield* firstLocator(locator)
+    return match ? ((yield* match.textContent())?.trim() ?? "") : ""
+  })
 
-    const card = input.closest('[data-testid="package-card"]')
-    if (!(card instanceof HTMLElement) || !isDisplayed(card)) continue
+const findBuyButton = (page: Page) =>
+  firstLocator(page.getByRole("button", { name: BUY_BUTTON_TEXT, disabled: false }))
 
-    const max = Number(input.max)
-    const selection: ExpandedSelection = {
-      title: packageTitle(card),
-      quantityInput: input,
-      min: Number(input.min) || 1,
+const packageCards = (page: Page) =>
+  Effect.gen(function* () {
+    for (const selector of PACKAGE_LAYOUT_ROOTS) {
+      const root = yield* firstLocator(page.locator(selector, { visible: true }))
+      if (root) return root.locator('[data-testid="package-card"]').filter({ visible: true })
     }
-    if (Number.isFinite(max)) selection.max = max
-    return selection
-  }
-  return undefined
-}
+    return page.locator('[data-testid="package-card"]', { visible: true })
+  })
 
-const findPesanButton = () => {
-  const el = findDisplayedByText(document.querySelectorAll("button"), PESAN_TEXT)
-  return el instanceof HTMLButtonElement ? el : undefined
-}
+const packageTitle = (card: Locator) => textContent(card.locator("h3").first())
 
-const readAutobuyPage = (): AutobuyPage => {
-  const phase = getPagePhase()
+const pilihButtonInCard = (card: Locator) =>
+  firstLocator(
+    card.locator('[data-testid="package-card-footer"]').getByRole("button", {
+      name: PILIH_TEXT,
+      disabled: false,
+    }),
+  )
 
-  switch (phase) {
-    case "overview": {
-      const buyButton = findBuyButton()
-      return buyButton ? { phase, buyButton } : { phase }
-    }
-    case "packages": {
-      const expanded = readExpandedSelection()
-      const pesanButton = findPesanButton()
-      return {
-        phase,
-        packages: readPackageOptions(),
-        ...(expanded ? { expanded } : {}),
-        ...(pesanButton ? { pesanButton } : {}),
+const readPackageOptions = (page: Page) =>
+  Effect.gen(function* () {
+    const cards = yield* packageCards(page)
+    const count = yield* cards.count()
+    const packages: PackageOption[] = []
+
+    for (let index = 0; index < count; index++) {
+      const card = cards.nth(index)
+      const footer = yield* textContent(card.locator('[data-testid="package-card-footer"]').first())
+      const soldOut = footer.includes("Terjual habis")
+      const option: PackageOption = {
+        title: yield* packageTitle(card),
+        soldOut,
       }
+      if (!soldOut) {
+        const pilihButton = yield* pilihButtonInCard(card)
+        if (pilihButton) option.pilihButton = pilihButton
+      }
+      packages.push(option)
     }
-    case "order":
-      return { phase }
-    default:
-      return { phase: undefined }
-  }
-}
 
-const setExpandedQuantity = (input: HTMLInputElement, count: number) => {
-  const max = Number(input.max)
-  const min = Number(input.min) || 1
-  if (!Number.isFinite(count) || count < min) return false
-  if (Number.isFinite(max) && count > max) return false
+    return packages
+  })
 
-  input.value = String(count)
-  input.dispatchEvent(new Event("input", { bubbles: true }))
-  input.dispatchEvent(new Event("change", { bubbles: true }))
+const readExpandedSelection = (page: Page) =>
+  Effect.gen(function* () {
+    const cards = yield* packageCards(page)
+    const count = yield* cards.count()
 
-  return Number(input.value) === count
-}
+    for (let index = 0; index < count; index++) {
+      const card = cards.nth(index)
+      const quantityInput = yield* firstLocator(
+        card.locator('input[type="number"]').filter({ visible: true }),
+      )
+      if (!quantityInput) continue
+
+      const max = Number(yield* quantityInput.getAttribute("max"))
+      const selection: ExpandedSelection = {
+        title: yield* packageTitle(card),
+        quantityInput,
+        min: Number(yield* quantityInput.getAttribute("min")) || 1,
+      }
+      if (Number.isFinite(max)) selection.max = max
+      return selection
+    }
+
+    return undefined
+  })
+
+const findPesanButton = (page: Page) =>
+  firstLocator(page.getByRole("button", { name: PESAN_TEXT, disabled: false }))
+
+const readAutobuyPage = (page = new Page(document)) =>
+  Effect.gen(function* () {
+    const phase = getPagePhase()
+
+    switch (phase) {
+      case "overview": {
+        const buyButton = yield* findBuyButton(page)
+        return buyButton ? { phase, buyButton } : { phase }
+      }
+      case "packages": {
+        const expanded = yield* readExpandedSelection(page)
+        const pesanButton = yield* findPesanButton(page)
+        return {
+          phase,
+          packages: yield* readPackageOptions(page),
+          ...(expanded ? { expanded } : {}),
+          ...(pesanButton ? { pesanButton } : {}),
+        }
+      }
+      case "order":
+        return { phase }
+      default:
+        return { phase: undefined }
+    }
+  })
+
+const setExpandedQuantity = (input: Locator, count: number) =>
+  Effect.gen(function* () {
+    const max = Number(yield* input.getAttribute("max"))
+    const min = Number(yield* input.getAttribute("min")) || 1
+    if (!Number.isFinite(count) || count < min) return false
+    if (Number.isFinite(max) && count > max) return false
+
+    yield* input.fill(String(count))
+    return Number(yield* input.inputValue()) === count
+  })
 
 const CATEGORY_PRIORITY = ["festival", "last forever fan", "cat 1"]
 const BUY_COUNT = 1
@@ -162,30 +165,25 @@ const matchesPriority = (title: string, priority: string) =>
 
 const availablePackage = (packages: PackageOption[], priority?: string) =>
   packages.find(
-    (pkg) =>
-      !pkg.soldOut &&
-      pkg.pilihButton &&
-      (!priority || matchesPriority(pkg.title, priority)),
+    (pkg) => !pkg.soldOut && pkg.pilihButton && (!priority || matchesPriority(pkg.title, priority)),
   )
 
 const orderExpanded = (title: string, logSuffix = "") =>
   Effect.gen(function* () {
-    const page = readAutobuyPage()
+    const page = yield* readAutobuyPage()
     const input = page.phase === "packages" ? page.expanded?.quantityInput : undefined
     if (!input) return false
 
-    if (!setExpandedQuantity(input, BUY_COUNT)) {
-      yield* Effect.logInfo(
-        `Quantity ${BUY_COUNT} not available for "${title}"${logSuffix}`,
-      )
+    if (!(yield* setExpandedQuantity(input, BUY_COUNT))) {
+      yield* Effect.logInfo(`Quantity ${BUY_COUNT} not available for "${title}"${logSuffix}`)
       return false
     }
 
     while (true) {
-      const next = readAutobuyPage()
+      const next = yield* readAutobuyPage()
       const pesan = next.phase === "packages" ? next.pesanButton : undefined
       if (pesan) {
-        pesan.click()
+        yield* pesan.click()
         yield* Effect.logInfo(`Ordered ${BUY_COUNT} from "${title}"${logSuffix}`)
         return true
       }
@@ -195,7 +193,7 @@ const orderExpanded = (title: string, logSuffix = "") =>
 
 const tryPriority = (priority: string) =>
   Effect.gen(function* () {
-    const page = readAutobuyPage()
+    const page = yield* readAutobuyPage()
     if (page.phase !== "packages") return false
 
     if (page.expanded && matchesPriority(page.expanded.title, priority)) {
@@ -208,15 +206,13 @@ const tryPriority = (priority: string) =>
       return false
     }
 
-    match.pilihButton.click()
+    yield* match.pilihButton.click()
     yield* Effect.logInfo(`Clicked Pilih for "${match.title}"`)
 
     while (true) {
-      const next = readAutobuyPage()
+      const next = yield* readAutobuyPage()
       const expanded =
-        next.phase === "packages" &&
-        next.expanded &&
-        matchesPriority(next.expanded.title, priority)
+        next.phase === "packages" && next.expanded && matchesPriority(next.expanded.title, priority)
           ? next.expanded
           : undefined
       if (expanded) return yield* orderExpanded(expanded.title)
@@ -226,9 +222,9 @@ const tryPriority = (priority: string) =>
 
 const runOverview = Effect.gen(function* () {
   while (true) {
-    const page = readAutobuyPage()
+    const page = yield* readAutobuyPage()
     if (page.phase === "overview" && page.buyButton) {
-      page.buyButton.click()
+      yield* page.buyButton.click()
       yield* Effect.logInfo('Clicked "Beli tiket sekarang"')
       return
     }
@@ -242,7 +238,7 @@ const runPackages = Effect.gen(function* () {
   }
 
   yield* Effect.logInfo("Falling back to first available package")
-  const page = readAutobuyPage()
+  const page = yield* readAutobuyPage()
   if (page.phase !== "packages") return
 
   const match = availablePackage(page.packages)
@@ -251,11 +247,11 @@ const runPackages = Effect.gen(function* () {
     return
   }
 
-  match.pilihButton.click()
+  yield* match.pilihButton.click()
   yield* Effect.logInfo(`Clicked Pilih for "${match.title}" (fallback)`)
 
   while (true) {
-    const next = readAutobuyPage()
+    const next = yield* readAutobuyPage()
     const expanded = next.phase === "packages" ? next.expanded : undefined
     if (expanded) {
       yield* orderExpanded(expanded.title, " (fallback)")
@@ -266,7 +262,7 @@ const runPackages = Effect.gen(function* () {
 })
 
 const runStep = Effect.gen(function* () {
-  const { phase } = readAutobuyPage()
+  const { phase } = yield* readAutobuyPage()
   yield* Effect.logInfo(`Autobuy step (phase: ${phase ?? "unknown"})`)
 
   switch (phase) {

@@ -1,60 +1,65 @@
-import { elementText } from "@/lib/html"
+import { Page } from "@/lib/playwlite"
+import { Effect } from "effect"
 
-const CUSTOM_PEOPLE_AHEAD_SELECTOR =
-  "#CustomQueueSection_NumberOfPeopleAhead > span"
+const CUSTOM_PEOPLE_AHEAD_SELECTOR = "#CustomQueueSection_NumberOfPeopleAhead > span"
 const USERS_AHEAD_SELECTOR = "#MainPart_lbUsersInLineAheadOfYou"
 
-const tryRead = (source: string, selector: string) => {
-  const el = document.querySelector(selector)
-  if (!(el instanceof HTMLElement)) {
-    return { peopleAhead: undefined, summary: `${source}: no element (${selector})` }
-  }
-
-  const raw = elementText(el)
-  if (!raw) {
-    return {
-      peopleAhead: undefined,
-      summary: `${source}: empty or hidden, raw="" (${selector})`,
+const tryRead = (page: Page, source: string, selector: string) =>
+  Effect.gen(function* () {
+    const locator = page.locator(selector)
+    if ((yield* locator.count()) === 0) {
+      return { peopleAhead: undefined, summary: `${source}: no element (${selector})` }
     }
-  }
+    if (!(yield* locator.first().isVisible())) {
+      return {
+        peopleAhead: undefined,
+        summary: `${source}: empty or hidden, raw="" (${selector})`,
+      }
+    }
 
-  const trimmed = raw.trim()
-  let peopleAhead: number | undefined
-  if (trimmed) {
-    if (/^\d{1,3}(\.\d{3})+$/.test(trimmed)) {
-      peopleAhead = Number(trimmed.replaceAll(".", ""))
-    } else if (/^\d{1,3}(,\d{3})+$/.test(trimmed)) {
-      peopleAhead = Number(trimmed.replaceAll(",", ""))
+    const raw = (yield* locator.first().textContent())?.trim() ?? ""
+    if (!raw) {
+      return {
+        peopleAhead: undefined,
+        summary: `${source}: empty or hidden, raw="" (${selector})`,
+      }
+    }
+
+    let peopleAhead: number | undefined
+    if (/^\d{1,3}(\.\d{3})+$/.test(raw)) {
+      peopleAhead = Number(raw.replaceAll(".", ""))
+    } else if (/^\d{1,3}(,\d{3})+$/.test(raw)) {
+      peopleAhead = Number(raw.replaceAll(",", ""))
     } else {
-      const parsed = Number(trimmed.replaceAll(",", ""))
+      const parsed = Number(raw.replaceAll(",", ""))
       if (Number.isInteger(parsed) && parsed >= 1) {
         peopleAhead = parsed
       }
     }
-  }
 
-  if (peopleAhead === undefined) {
+    if (peopleAhead === undefined) {
+      return {
+        peopleAhead: undefined,
+        summary: `${source}: unparsable raw="${raw}" (${selector})`,
+      }
+    }
+
+    return {
+      peopleAhead,
+      summary: `${source}: raw="${raw}" -> ${peopleAhead}`,
+    }
+  })
+
+export const readPeopleAhead = (page = new Page(document)) =>
+  Effect.gen(function* () {
+    const custom = yield* tryRead(page, "custom", CUSTOM_PEOPLE_AHEAD_SELECTOR)
+    if (custom.peopleAhead !== undefined) return custom
+
+    const fallback = yield* tryRead(page, "default", USERS_AHEAD_SELECTOR)
+    if (fallback.peopleAhead !== undefined) return fallback
+
     return {
       peopleAhead: undefined,
-      summary: `${source}: unparsable raw="${raw}" (${selector})`,
+      summary: `${custom.summary}; ${fallback.summary}`,
     }
-  }
-
-  return {
-    peopleAhead,
-    summary: `${source}: raw="${raw}" → ${peopleAhead}`,
-  }
-}
-
-export const readPeopleAhead = () => {
-  const custom = tryRead("custom", CUSTOM_PEOPLE_AHEAD_SELECTOR)
-  if (custom.peopleAhead !== undefined) return custom
-
-  const fallback = tryRead("default", USERS_AHEAD_SELECTOR)
-  if (fallback.peopleAhead !== undefined) return fallback
-
-  return {
-    peopleAhead: undefined,
-    summary: `${custom.summary}; ${fallback.summary}`,
-  }
-}
+  })

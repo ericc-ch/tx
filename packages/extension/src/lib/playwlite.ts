@@ -37,10 +37,10 @@ type ActionOptions = {
 type SelectOption =
   | string
   | {
-    readonly value?: string
-    readonly label?: string
-    readonly index?: number
-  }
+      readonly value?: string
+      readonly label?: string
+      readonly index?: number
+    }
 
 const defaultTimeout = Duration.seconds(5)
 const pollInterval = Duration.millis(20)
@@ -64,7 +64,13 @@ export class StrictModeViolation extends Data.TaggedError("StrictModeViolation")
   }
 }
 
-type NotInteractableReason = "disabled" | "hidden" | "not-editable" | "obscured" | "unstable" | "wrong-element"
+type NotInteractableReason =
+  | "disabled"
+  | "hidden"
+  | "not-editable"
+  | "obscured"
+  | "unstable"
+  | "wrong-element"
 
 export class NotInteractable extends Data.TaggedError("NotInteractable")<{
   readonly selector: string
@@ -75,7 +81,7 @@ export class NotInteractable extends Data.TaggedError("NotInteractable")<{
   }
 }
 
-export type BrowserPageError = LocatorTimeout | StrictModeViolation | NotInteractable
+export type PlaywliteError = LocatorTimeout | StrictModeViolation | NotInteractable
 
 type Query = () => Element[]
 
@@ -90,10 +96,7 @@ export class Locator {
 
   locator(selector: string, options?: LocatorOptions) {
     return new Locator(
-      () => filterElements(
-        querySelectorAllWithin(this.query(), selector),
-        options,
-      ),
+      () => filterElements(querySelectorAllWithin(this.query(), selector), options),
       `${this.selector}.locator(${JSON.stringify(selector)})`,
     )
   }
@@ -107,7 +110,10 @@ export class Locator {
 
   getByText(text: TextMatcher, options?: TextOptions) {
     return this.locatorBy(
-      () => allDescendants(this.query()).filter((element) => matchesElementText(element, text, options)),
+      () =>
+        allDescendants(this.query()).filter((element) =>
+          matchesElementText(element, text, options),
+        ),
       `getByText(${formatMatcher(text)})`,
     )
   }
@@ -125,7 +131,7 @@ export class Locator {
         allDescendants(this.query()).filter((element) =>
           element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
             ? matchesText(element.placeholder, text, !!options?.exact)
-            : false
+            : false,
         ),
       `getByPlaceholder(${formatMatcher(text)})`,
     )
@@ -135,17 +141,14 @@ export class Locator {
     return this.locatorBy(
       () =>
         allDescendants(this.query()).filter((element) =>
-          matchesText(element.getAttribute("data-testid") ?? "", testId, true)
+          matchesText(element.getAttribute("data-testid") ?? "", testId, true),
         ),
       `getByTestId(${formatMatcher(testId)})`,
     )
   }
 
   filter(options: LocatorOptions) {
-    return new Locator(
-      () => filterElements(this.query(), options),
-      `${this.selector}.filter(...)`,
-    )
+    return new Locator(() => filterElements(this.query(), options), `${this.selector}.filter(...)`)
   }
 
   first() {
@@ -166,6 +169,37 @@ export class Locator {
 
   textContent() {
     return this.resolve().pipe(Effect.map((element) => element.textContent))
+  }
+
+  innerText() {
+    const selector = this.selector
+    return this.resolve().pipe(
+      Effect.flatMap((element) =>
+        element instanceof HTMLElement
+          ? Effect.succeed(element.innerText ?? element.textContent ?? "")
+          : Effect.fail(new NotInteractable({ selector, reason: "wrong-element" })),
+      ),
+    )
+  }
+
+  getAttribute(name: string) {
+    return this.resolve().pipe(Effect.map((element) => element.getAttribute(name)))
+  }
+
+  inputValue() {
+    const selector = this.selector
+    return this.resolve().pipe(
+      Effect.flatMap((element) => {
+        if (
+          element instanceof HTMLInputElement ||
+          element instanceof HTMLTextAreaElement ||
+          element instanceof HTMLSelectElement
+        ) {
+          return Effect.succeed(element.value)
+        }
+        return Effect.fail(new NotInteractable({ selector, reason: "wrong-element" }))
+      }),
+    )
   }
 
   isVisible() {
@@ -203,13 +237,14 @@ export class Locator {
           return yield* new StrictModeViolation({ selector, count: elements.length })
         }
         const element = elements[0]
-        const matches = state === "attached"
-          ? !!element
-          : state === "detached"
-          ? !element
-          : state === "visible"
-          ? !!element && isElementVisible(element)
-          : !element || !isElementVisible(element)
+        const matches =
+          state === "attached"
+            ? !!element
+            : state === "detached"
+              ? !element
+              : state === "visible"
+                ? !!element && isElementVisible(element)
+                : !element || !isElementVisible(element)
 
         if (!matches) {
           return yield* new LocatorTimeout({
@@ -246,7 +281,14 @@ export class Locator {
         yield* Effect.sync(() => {
           element.focus()
           setNativeValue(element, value)
-          element.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: value }))
+          element.dispatchEvent(
+            new InputEvent("input", {
+              bubbles: true,
+              composed: true,
+              inputType: "insertText",
+              data: value,
+            }),
+          )
           element.dispatchEvent(new Event("change", { bubbles: true }))
         })
         return
@@ -256,7 +298,14 @@ export class Locator {
         yield* Effect.sync(() => {
           ;(element as HTMLElement).focus()
           element.textContent = value
-          element.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true, inputType: "insertText", data: value }))
+          element.dispatchEvent(
+            new InputEvent("input", {
+              bubbles: true,
+              composed: true,
+              inputType: "insertText",
+              data: value,
+            }),
+          )
         })
         return
       }
@@ -298,15 +347,14 @@ export class Locator {
 
       return yield* Effect.sync(() => {
         const values = Array.isArray(value) ? value : [value]
-        const selected: string[] = []
-        for (const option of element.options) {
-          const shouldSelect = values.some((requested) => optionMatches(option, requested))
-          option.selected = shouldSelect
-          if (shouldSelect) selected.push(option.value)
-        }
+        const matched = [...element.options].filter((option) =>
+          values.some((requested) => optionMatches(option, requested)),
+        )
+        const selected = element.multiple ? matched : matched.slice(0, 1)
+        for (const option of element.options) option.selected = selected.includes(option)
         element.dispatchEvent(new Event("input", { bubbles: true }))
         element.dispatchEvent(new Event("change", { bubbles: true }))
-        return selected
+        return selected.map((option) => option.value)
       })
     })
   }
@@ -316,7 +364,9 @@ export class Locator {
     return Effect.gen(function* () {
       const element = yield* resolved
       yield* Effect.sync(() => {
-        element.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, composed: true, ...eventInit }))
+        element.dispatchEvent(
+          new Event(type, { bubbles: true, cancelable: true, composed: true, ...eventInit }),
+        )
       })
     })
   }
@@ -342,7 +392,10 @@ export class Locator {
     })
   }
 
-  private actionable(checks: ReadonlyArray<"visible" | "stable" | "enabled" | "editable" | "hit-target">, options: ActionOptions) {
+  private actionable(
+    checks: ReadonlyArray<"visible" | "stable" | "enabled" | "editable" | "hit-target">,
+    options: ActionOptions,
+  ) {
     const resolved = this.resolve()
     const selector = this.selector
     return waitUntil(
@@ -357,7 +410,9 @@ export class Locator {
     )
   }
 
-  private queryState(state: "visible" | "hidden" | "enabled" | "disabled" | "editable" | "checked") {
+  private queryState(
+    state: "visible" | "hidden" | "enabled" | "disabled" | "editable" | "checked",
+  ) {
     const query = this.query
     const selector = this.selector
     return Effect.gen(function* () {
@@ -370,14 +425,14 @@ export class Locator {
       return state === "visible"
         ? isElementVisible(element)
         : state === "hidden"
-        ? !isElementVisible(element)
-        : state === "enabled"
-        ? !isDisabled(element)
-        : state === "disabled"
-        ? isDisabled(element)
-        : state === "editable"
-        ? isEditable(element)
-        : element instanceof HTMLInputElement && element.checked
+          ? !isElementVisible(element)
+          : state === "enabled"
+            ? !isDisabled(element)
+            : state === "disabled"
+              ? isDisabled(element)
+              : state === "editable"
+                ? isEditable(element)
+                : element instanceof HTMLInputElement && element.checked
     })
   }
 }
@@ -394,6 +449,22 @@ export class Page {
       () => filterElements([...this.root.querySelectorAll(selector)], options),
       `page.locator(${JSON.stringify(selector)})`,
     )
+  }
+
+  textContent(selector: string) {
+    return this.locator(selector).textContent()
+  }
+
+  innerText(selector: string) {
+    return this.locator(selector).innerText()
+  }
+
+  getAttribute(selector: string, name: string) {
+    return this.locator(selector).getAttribute(name)
+  }
+
+  inputValue(selector: string) {
+    return this.locator(selector).inputValue()
   }
 
   getByRole(role: string, options: ByRoleOptions = {}) {
@@ -423,7 +494,7 @@ export class Page {
         allElements(this.root).filter((element) =>
           element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
             ? matchesText(element.placeholder, text, !!options?.exact)
-            : false
+            : false,
         ),
       `page.getByPlaceholder(${formatMatcher(text)})`,
     )
@@ -433,7 +504,7 @@ export class Page {
     return Page.locatorBy(
       () =>
         allElements(this.root).filter((element) =>
-          matchesText(element.getAttribute("data-testid") ?? "", testId, true)
+          matchesText(element.getAttribute("data-testid") ?? "", testId, true),
         ),
       `page.getByTestId(${formatMatcher(testId)})`,
     )
@@ -444,20 +515,20 @@ export class Page {
   }
 }
 
-export class BrowserPage extends Context.Service<BrowserPage>()("tx/BrowserPage", {
+export class Playwlite extends Context.Service<Playwlite>()("tx/Playwlite", {
   make: Effect.sync(() => new Page(document)),
 }) {
   static layer = Layer.effect(this, this.make)
 }
 
 const waitUntil = <A>(
-  effect: Effect.Effect<A, BrowserPageError>,
+  effect: Effect.Effect<A, PlaywliteError>,
   options: { readonly selector: string; readonly state: string; readonly timeout?: Duration.Input },
 ) => {
   const timeout = options.timeout ?? defaultTimeout
 
   return Effect.gen(function* () {
-    const lastError = yield* Ref.make<BrowserPageError | undefined>(undefined)
+    const lastError = yield* Ref.make<PlaywliteError | undefined>(undefined)
 
     return yield* effect.pipe(
       Effect.tapError((error) => Ref.set(lastError, error)),
@@ -471,12 +542,13 @@ const waitUntil = <A>(
           Ref.get(lastError).pipe(
             Effect.flatMap((error) =>
               Effect.fail(
-                error ?? new LocatorTimeout({
-                  selector: options.selector,
-                  state: options.state,
-                  timeout: toDuration(timeout),
-                }),
-              )
+                error ??
+                  new LocatorTimeout({
+                    selector: options.selector,
+                    state: options.state,
+                    timeout: toDuration(timeout),
+                  }),
+              ),
             ),
           ),
       }),
@@ -484,8 +556,9 @@ const waitUntil = <A>(
   })
 }
 
-const isRetryable = (error: BrowserPageError) =>
-  error._tag !== "StrictModeViolation" && (error._tag !== "NotInteractable" || error.reason !== "wrong-element")
+const isRetryable = (error: PlaywliteError) =>
+  error._tag !== "StrictModeViolation" &&
+  (error._tag !== "NotInteractable" || error.reason !== "wrong-element")
 
 const assertActionable = (
   selector: string,
@@ -522,12 +595,14 @@ const isStable = (element: Element) =>
     const firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
         const second = element.getBoundingClientRect()
-        resume(Effect.succeed(
-          first.x === second.x &&
-            first.y === second.y &&
-            first.width === second.width &&
-            first.height === second.height,
-        ))
+        resume(
+          Effect.succeed(
+            first.x === second.x &&
+              first.y === second.y &&
+              first.width === second.width &&
+              first.height === second.height,
+          ),
+        )
       })
     })
     return Effect.sync(() => {
@@ -567,15 +642,22 @@ const unique = (elements: ReadonlyArray<Element>) => [...new Set(elements)]
 
 const filterElements = (elements: ReadonlyArray<Element>, options?: LocatorOptions) =>
   elements.filter((element) => {
-    if (options?.visible !== undefined && isElementVisible(element) !== options.visible) return false
-    if (options?.hasText !== undefined && !matchesText(textContent(element), options.hasText, false)) return false
+    if (options?.visible !== undefined && isElementVisible(element) !== options.visible)
+      return false
+    if (
+      options?.hasText !== undefined &&
+      !matchesText(textContent(element), options.hasText, false)
+    )
+      return false
     return true
   })
 
 const matchesElementText = (element: Element, text: TextMatcher, options?: TextOptions) => {
   if (shouldSkipText(element)) return false
   if (!matchesText(textContent(element), text, !!options?.exact)) return false
-  return ![...element.children].some((child) => matchesText(textContent(child), text, !!options?.exact))
+  return ![...element.children].some((child) =>
+    matchesText(textContent(child), text, !!options?.exact),
+  )
 }
 
 const matchesRole = (element: Element, role: string, options: ByRoleOptions) => {
@@ -584,10 +666,16 @@ const matchesRole = (element: Element, role: string, options: ByRoleOptions) => 
   if (options.disabled !== undefined && isDisabled(element) !== options.disabled) return false
   if (options.checked !== undefined && checkedState(element) !== options.checked) return false
   if (options.selected !== undefined && selectedState(element) !== options.selected) return false
-  if (options.expanded !== undefined && attrBool(element, "aria-expanded") !== options.expanded) return false
-  if (options.pressed !== undefined && attrBool(element, "aria-pressed") !== options.pressed) return false
+  if (options.expanded !== undefined && attrBool(element, "aria-expanded") !== options.expanded)
+    return false
+  if (options.pressed !== undefined && attrBool(element, "aria-pressed") !== options.pressed)
+    return false
   if (options.level !== undefined && headingLevel(element) !== options.level) return false
-  if (options.name !== undefined && !matchesText(accessibleName(element), options.name, !!options.exact)) return false
+  if (
+    options.name !== undefined &&
+    !matchesText(accessibleName(element), options.name, !!options.exact)
+  )
+    return false
   return true
 }
 
@@ -614,7 +702,8 @@ const ariaRole = (element: Element) => {
     if (element.type === "checkbox") return "checkbox"
     if (element.type === "radio") return "radio"
     if (element.type === "number") return "spinbutton"
-    if (["email", "password", "search", "tel", "text", "url"].includes(element.type)) return "textbox"
+    if (["email", "password", "search", "tel", "text", "url"].includes(element.type))
+      return "textbox"
   }
 
   return undefined
@@ -623,22 +712,25 @@ const ariaRole = (element: Element) => {
 const accessibleName = (element: Element): string => {
   const labelledBy = element.getAttribute("aria-labelledby")
   if (labelledBy) {
-    const labels = labelledBy
-      .split(/\s+/)
-      .flatMap((id) => {
-        const label = element.ownerDocument.getElementById(id)
-        return label ? [textContent(label)] : []
-      })
+    const labels = labelledBy.split(/\s+/).flatMap((id) => {
+      const label = element.ownerDocument.getElementById(id)
+      return label ? [textContent(label)] : []
+    })
     if (labels.length > 0) return normalize(labels.join(" "))
   }
 
   const ariaLabel = element.getAttribute("aria-label")
   if (ariaLabel) return normalize(ariaLabel)
 
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+  if (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLSelectElement
+  ) {
     const labels = [...(element.labels ?? [])].map(textContent).join(" ")
     if (labels) return normalize(labels)
-    if (element instanceof HTMLInputElement && ["button", "submit", "reset"].includes(element.type)) return normalize(element.value)
+    if (element instanceof HTMLInputElement && ["button", "submit", "reset"].includes(element.type))
+      return normalize(element.value)
   }
 
   const alt = element.getAttribute("alt")
@@ -649,10 +741,18 @@ const accessibleName = (element: Element): string => {
 }
 
 const matchesLabel = (element: Element, text: TextMatcher, options?: TextOptions) => {
-  if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) {
+  if (
+    !(
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement
+    )
+  ) {
     return false
   }
-  return [...(element.labels ?? [])].some((label) => matchesText(textContent(label), text, !!options?.exact))
+  return [...(element.labels ?? [])].some((label) =>
+    matchesText(textContent(label), text, !!options?.exact),
+  )
 }
 
 const checkedState = (element: Element) =>
@@ -702,7 +802,13 @@ const isDisabled = (element: Element) => {
 const isEditable = (element: Element) => {
   if (isDisabled(element)) return false
   if (element instanceof HTMLTextAreaElement) return !element.readOnly
-  if (element instanceof HTMLInputElement) return !element.readOnly && !["button", "checkbox", "file", "hidden", "image", "radio", "reset", "submit"].includes(element.type)
+  if (element instanceof HTMLInputElement)
+    return (
+      !element.readOnly &&
+      !["button", "checkbox", "file", "hidden", "image", "radio", "reset", "submit"].includes(
+        element.type,
+      )
+    )
   return isContentEditable(element)
 }
 

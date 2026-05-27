@@ -14,7 +14,7 @@ const main = Effect.gen(function* () {
   const config = yield* Config
   const { browserId } = yield* config.get()
 
-  const position = yield* Effect.sync(() => readPeopleAhead()).pipe(
+  const position = yield* readPeopleAhead().pipe(
     Effect.tap((read) =>
       read.peopleAhead !== undefined
         ? Effect.logInfo(`Queue read OK: ${read.summary}`)
