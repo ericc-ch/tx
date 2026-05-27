@@ -96,7 +96,13 @@ export class Locator {
 
   locator(selector: string, options?: LocatorOptions) {
     return new Locator(
-      () => filterElements(querySelectorAllWithin(this.query(), selector), options),
+      () => {
+        const elements: Element[] = []
+        for (const root of this.query()) {
+          elements.push(...root.querySelectorAll(selector))
+        }
+        return filterElements(unique(elements), options)
+      },
       `${this.selector}.locator(${JSON.stringify(selector)})`,
     )
   }
@@ -265,7 +271,13 @@ export class Locator {
       if (options.trial) return
       yield* Effect.sync(() => {
         if (element instanceof HTMLElement) element.click()
-        else dispatchMouseClick(element)
+        else {
+          for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+            element.dispatchEvent(
+              new MouseEvent(type, { bubbles: true, cancelable: true, composed: true }),
+            )
+          }
+        }
       })
     })
   }
@@ -280,7 +292,9 @@ export class Locator {
       if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
         yield* Effect.sync(() => {
           element.focus()
-          setNativeValue(element, value)
+          const prototype = Object.getPrototypeOf(element) as HTMLInputElement | HTMLTextAreaElement
+          const descriptor = Object.getOwnPropertyDescriptor(prototype, "value")
+          descriptor?.set?.call(element, value)
           element.dispatchEvent(
             new InputEvent("input", {
               bubbles: true,
@@ -348,7 +362,15 @@ export class Locator {
       return yield* Effect.sync(() => {
         const values = Array.isArray(value) ? value : [value]
         const matched = [...element.options].filter((option) =>
-          values.some((requested) => optionMatches(option, requested)),
+          values.some((requested) => {
+            if (typeof requested === "string") {
+              return option.value === requested || option.label === requested
+            }
+            if (requested.value !== undefined && option.value !== requested.value) return false
+            if (requested.label !== undefined && option.label !== requested.label) return false
+            if (requested.index !== undefined && option.index !== requested.index) return false
+            return true
+          }),
         )
         const selected = element.multiple ? matched : matched.slice(0, 1)
         for (const option of element.options) option.selected = selected.includes(option)
@@ -402,7 +424,58 @@ export class Locator {
       Effect.gen(function* () {
         const element = yield* resolved
         if (!options.force) {
-          yield* assertActionable(selector, element, checks)
+          if (checks.includes("visible") && !isElementVisible(element)) {
+            return yield* new NotInteractable({ selector, reason: "hidden" })
+          }
+          if (checks.includes("enabled") && isDisabled(element)) {
+            return yield* new NotInteractable({ selector, reason: "disabled" })
+          }
+          if (checks.includes("editable") && !isEditable(element)) {
+            return yield* new NotInteractable({ selector, reason: "not-editable" })
+          }
+          if (checks.includes("stable")) {
+            const stable = yield* Effect.callback<boolean>((resume) => {
+              const first = element.getBoundingClientRect()
+              let secondFrame: number | undefined
+              const firstFrame = requestAnimationFrame(() => {
+                secondFrame = requestAnimationFrame(() => {
+                  const second = element.getBoundingClientRect()
+                  resume(
+                    Effect.succeed(
+                      first.x === second.x &&
+                        first.y === second.y &&
+                        first.width === second.width &&
+                        first.height === second.height,
+                    ),
+                  )
+                })
+              })
+              return Effect.sync(() => {
+                cancelAnimationFrame(firstFrame)
+                if (secondFrame !== undefined) cancelAnimationFrame(secondFrame)
+              })
+            })
+            if (!stable) {
+              return yield* new NotInteractable({ selector, reason: "unstable" })
+            }
+          }
+
+          yield* Effect.sync(() => {
+            element.scrollIntoView({ block: "center", inline: "center" })
+          })
+
+          if (checks.includes("hit-target")) {
+            const hitTargetReceivesEvents = yield* Effect.sync(() => {
+              const rect = element.getBoundingClientRect()
+              const x = rect.left + rect.width / 2
+              const y = rect.top + rect.height / 2
+              const hit = document.elementFromPoint(x, y)
+              return !!hit && (hit === element || element.contains(hit))
+            })
+            if (!hitTargetReceivesEvents) {
+              return yield* new NotInteractable({ selector, reason: "obscured" })
+            }
+          }
         }
         return element
       }),
@@ -534,7 +607,9 @@ const waitUntil = <A>(
       Effect.tapError((error) => Ref.set(lastError, error)),
       Effect.retry({
         schedule: Schedule.spaced(pollInterval),
-        while: isRetryable,
+        while: (error) =>
+          error._tag !== "StrictModeViolation" &&
+          (error._tag !== "NotInteractable" || error.reason !== "wrong-element"),
       }),
       Effect.timeoutOrElse({
         duration: timeout,
@@ -556,69 +631,6 @@ const waitUntil = <A>(
   })
 }
 
-const isRetryable = (error: PlaywliteError) =>
-  error._tag !== "StrictModeViolation" &&
-  (error._tag !== "NotInteractable" || error.reason !== "wrong-element")
-
-const assertActionable = (
-  selector: string,
-  element: Element,
-  checks: ReadonlyArray<"visible" | "stable" | "enabled" | "editable" | "hit-target">,
-) =>
-  Effect.gen(function* () {
-    if (checks.includes("visible") && !isElementVisible(element)) {
-      return yield* new NotInteractable({ selector, reason: "hidden" })
-    }
-    if (checks.includes("enabled") && isDisabled(element)) {
-      return yield* new NotInteractable({ selector, reason: "disabled" })
-    }
-    if (checks.includes("editable") && !isEditable(element)) {
-      return yield* new NotInteractable({ selector, reason: "not-editable" })
-    }
-    if (checks.includes("stable") && !(yield* isStable(element))) {
-      return yield* new NotInteractable({ selector, reason: "unstable" })
-    }
-
-    yield* Effect.sync(() => {
-      element.scrollIntoView({ block: "center", inline: "center" })
-    })
-
-    if (checks.includes("hit-target") && !(yield* Effect.sync(() => receivesEvents(element)))) {
-      return yield* new NotInteractable({ selector, reason: "obscured" })
-    }
-  })
-
-const isStable = (element: Element) =>
-  Effect.callback<boolean>((resume) => {
-    const first = element.getBoundingClientRect()
-    let secondFrame: number | undefined
-    const firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(() => {
-        const second = element.getBoundingClientRect()
-        resume(
-          Effect.succeed(
-            first.x === second.x &&
-              first.y === second.y &&
-              first.width === second.width &&
-              first.height === second.height,
-          ),
-        )
-      })
-    })
-    return Effect.sync(() => {
-      cancelAnimationFrame(firstFrame)
-      if (secondFrame !== undefined) cancelAnimationFrame(secondFrame)
-    })
-  })
-
-const receivesEvents = (element: Element) => {
-  const rect = element.getBoundingClientRect()
-  const x = rect.left + rect.width / 2
-  const y = rect.top + rect.height / 2
-  const hit = document.elementFromPoint(x, y)
-  return !!hit && (hit === element || element.contains(hit))
-}
-
 const allElements = (root: ParentNode) => [...root.querySelectorAll("*")]
 
 const allDescendants = (roots: ReadonlyArray<Element>) => {
@@ -626,14 +638,6 @@ const allDescendants = (roots: ReadonlyArray<Element>) => {
   for (const root of roots) {
     elements.push(root)
     elements.push(...root.querySelectorAll("*"))
-  }
-  return unique(elements)
-}
-
-const querySelectorAllWithin = (roots: ReadonlyArray<Element>, selector: string) => {
-  const elements: Element[] = []
-  for (const root of roots) {
-    elements.push(...root.querySelectorAll(selector))
   }
   return unique(elements)
 }
@@ -653,7 +657,11 @@ const filterElements = (elements: ReadonlyArray<Element>, options?: LocatorOptio
   })
 
 const matchesElementText = (element: Element, text: TextMatcher, options?: TextOptions) => {
-  if (shouldSkipText(element)) return false
+  if (
+    ["SCRIPT", "STYLE", "NOSCRIPT"].includes(element.tagName) ||
+    !!element.ownerDocument.head?.contains(element)
+  )
+    return false
   if (!matchesText(textContent(element), text, !!options?.exact)) return false
   return ![...element.children].some((child) =>
     matchesText(textContent(child), text, !!options?.exact),
@@ -661,83 +669,108 @@ const matchesElementText = (element: Element, text: TextMatcher, options?: TextO
 }
 
 const matchesRole = (element: Element, role: string, options: ByRoleOptions) => {
-  if (ariaRole(element) !== role.toLowerCase()) return false
+  const actualRole = (() => {
+    const explicit = element.getAttribute("role")
+    if (explicit) return explicit.toLowerCase()
+
+    const tag = element.tagName.toLowerCase()
+    if (tag === "button") return "button"
+    if (tag === "select") return "combobox"
+    if (tag === "textarea") return "textbox"
+    if (tag === "a" && element.hasAttribute("href")) return "link"
+    if (tag === "img") return "img"
+    if (tag === "ul" || tag === "ol") return "list"
+    if (tag === "li") return "listitem"
+    if (/^h[1-6]$/.test(tag)) return "heading"
+    if (tag === "table") return "table"
+    if (tag === "tr") return "row"
+    if (tag === "td" || tag === "th") return "cell"
+    if (tag === "dialog") return "dialog"
+
+    if (element instanceof HTMLInputElement) {
+      if (["button", "submit", "reset"].includes(element.type)) return "button"
+      if (element.type === "checkbox") return "checkbox"
+      if (element.type === "radio") return "radio"
+      if (element.type === "number") return "spinbutton"
+      if (["email", "password", "search", "tel", "text", "url"].includes(element.type)) {
+        return "textbox"
+      }
+    }
+
+    return undefined
+  })()
+
+  if (actualRole !== role.toLowerCase()) return false
   if (!options.includeHidden && !isElementVisible(element)) return false
   if (options.disabled !== undefined && isDisabled(element) !== options.disabled) return false
-  if (options.checked !== undefined && checkedState(element) !== options.checked) return false
-  if (options.selected !== undefined && selectedState(element) !== options.selected) return false
+  if (options.checked !== undefined) {
+    const checked =
+      element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
+        ? element.checked
+        : attrBool(element, "aria-checked")
+    if (checked !== options.checked) return false
+  }
+  if (options.selected !== undefined) {
+    const selected =
+      element instanceof HTMLOptionElement ? element.selected : attrBool(element, "aria-selected")
+    if (selected !== options.selected) return false
+  }
   if (options.expanded !== undefined && attrBool(element, "aria-expanded") !== options.expanded)
     return false
   if (options.pressed !== undefined && attrBool(element, "aria-pressed") !== options.pressed)
     return false
-  if (options.level !== undefined && headingLevel(element) !== options.level) return false
-  if (
-    options.name !== undefined &&
-    !matchesText(accessibleName(element), options.name, !!options.exact)
-  )
-    return false
+  if (options.level !== undefined) {
+    const ariaLevel = Number(element.getAttribute("aria-level"))
+    const tagLevel = /^h([1-6])$/i.exec(element.tagName)
+    const level =
+      Number.isFinite(ariaLevel) && ariaLevel > 0
+        ? ariaLevel
+        : tagLevel
+          ? Number(tagLevel[1])
+          : undefined
+    if (level !== options.level) return false
+  }
+
+  if (options.name !== undefined) {
+    const name = (() => {
+      const labelledBy = element.getAttribute("aria-labelledby")
+      if (labelledBy) {
+        const labels = labelledBy.split(/\s+/).flatMap((id) => {
+          const label = element.ownerDocument.getElementById(id)
+          return label ? [textContent(label)] : []
+        })
+        if (labels.length > 0) return normalize(labels.join(" "))
+      }
+
+      const ariaLabel = element.getAttribute("aria-label")
+      if (ariaLabel) return normalize(ariaLabel)
+
+      if (
+        element instanceof HTMLInputElement ||
+        element instanceof HTMLTextAreaElement ||
+        element instanceof HTMLSelectElement
+      ) {
+        const labels = [...(element.labels ?? [])].map(textContent).join(" ")
+        if (labels) return normalize(labels)
+        if (
+          element instanceof HTMLInputElement &&
+          ["button", "submit", "reset"].includes(element.type)
+        ) {
+          return normalize(element.value)
+        }
+      }
+
+      const alt = element.getAttribute("alt")
+      if (alt) return normalize(alt)
+      const title = element.getAttribute("title")
+      if (title) return normalize(title)
+      return textContent(element)
+    })()
+
+    if (!matchesText(name, options.name, !!options.exact)) return false
+  }
+
   return true
-}
-
-const ariaRole = (element: Element) => {
-  const explicit = element.getAttribute("role")
-  if (explicit) return explicit.toLowerCase()
-
-  const tag = element.tagName.toLowerCase()
-  if (tag === "button") return "button"
-  if (tag === "select") return "combobox"
-  if (tag === "textarea") return "textbox"
-  if (tag === "a" && element.hasAttribute("href")) return "link"
-  if (tag === "img") return "img"
-  if (tag === "ul" || tag === "ol") return "list"
-  if (tag === "li") return "listitem"
-  if (/^h[1-6]$/.test(tag)) return "heading"
-  if (tag === "table") return "table"
-  if (tag === "tr") return "row"
-  if (tag === "td" || tag === "th") return "cell"
-  if (tag === "dialog") return "dialog"
-
-  if (element instanceof HTMLInputElement) {
-    if (["button", "submit", "reset"].includes(element.type)) return "button"
-    if (element.type === "checkbox") return "checkbox"
-    if (element.type === "radio") return "radio"
-    if (element.type === "number") return "spinbutton"
-    if (["email", "password", "search", "tel", "text", "url"].includes(element.type))
-      return "textbox"
-  }
-
-  return undefined
-}
-
-const accessibleName = (element: Element): string => {
-  const labelledBy = element.getAttribute("aria-labelledby")
-  if (labelledBy) {
-    const labels = labelledBy.split(/\s+/).flatMap((id) => {
-      const label = element.ownerDocument.getElementById(id)
-      return label ? [textContent(label)] : []
-    })
-    if (labels.length > 0) return normalize(labels.join(" "))
-  }
-
-  const ariaLabel = element.getAttribute("aria-label")
-  if (ariaLabel) return normalize(ariaLabel)
-
-  if (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement ||
-    element instanceof HTMLSelectElement
-  ) {
-    const labels = [...(element.labels ?? [])].map(textContent).join(" ")
-    if (labels) return normalize(labels)
-    if (element instanceof HTMLInputElement && ["button", "submit", "reset"].includes(element.type))
-      return normalize(element.value)
-  }
-
-  const alt = element.getAttribute("alt")
-  if (alt) return normalize(alt)
-  const title = element.getAttribute("title")
-  if (title) return normalize(title)
-  return textContent(element)
 }
 
 const matchesLabel = (element: Element, text: TextMatcher, options?: TextOptions) => {
@@ -753,21 +786,6 @@ const matchesLabel = (element: Element, text: TextMatcher, options?: TextOptions
   return [...(element.labels ?? [])].some((label) =>
     matchesText(textContent(label), text, !!options?.exact),
   )
-}
-
-const checkedState = (element: Element) =>
-  element instanceof HTMLInputElement && ["checkbox", "radio"].includes(element.type)
-    ? element.checked
-    : attrBool(element, "aria-checked")
-
-const selectedState = (element: Element) =>
-  element instanceof HTMLOptionElement ? element.selected : attrBool(element, "aria-selected")
-
-const headingLevel = (element: Element) => {
-  const ariaLevel = Number(element.getAttribute("aria-level"))
-  if (Number.isFinite(ariaLevel) && ariaLevel > 0) return ariaLevel
-  const match = /^h([1-6])$/i.exec(element.tagName)
-  return match ? Number(match[1]) : undefined
 }
 
 const attrBool = (element: Element, name: string) => {
@@ -815,26 +833,6 @@ const isEditable = (element: Element) => {
 const isContentEditable = (element: Element) =>
   element instanceof HTMLElement && element.isContentEditable
 
-const setNativeValue = (element: HTMLInputElement | HTMLTextAreaElement, value: string) => {
-  const prototype = Object.getPrototypeOf(element) as HTMLInputElement | HTMLTextAreaElement
-  const descriptor = Object.getOwnPropertyDescriptor(prototype, "value")
-  descriptor?.set?.call(element, value)
-}
-
-const dispatchMouseClick = (element: Element) => {
-  for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
-    element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, composed: true }))
-  }
-}
-
-const optionMatches = (option: HTMLOptionElement, requested: SelectOption) => {
-  if (typeof requested === "string") return option.value === requested || option.label === requested
-  if (requested.value !== undefined && option.value !== requested.value) return false
-  if (requested.label !== undefined && option.label !== requested.label) return false
-  if (requested.index !== undefined && option.index !== requested.index) return false
-  return true
-}
-
 const matchesText = (value: string, matcher: TextMatcher, exact: boolean) => {
   const normalized = normalize(value)
   if (matcher instanceof RegExp) return matcher.test(normalized)
@@ -845,10 +843,6 @@ const matchesText = (value: string, matcher: TextMatcher, exact: boolean) => {
 const textContent = (element: Element) => normalize(element.textContent ?? "")
 
 const normalize = (value: string) => value.replace(/\s+/g, " ").trim()
-
-const shouldSkipText = (element: Element) =>
-  ["SCRIPT", "STYLE", "NOSCRIPT"].includes(element.tagName) ||
-  !!element.ownerDocument.head?.contains(element)
 
 const formatMatcher = (matcher: TextMatcher) =>
   matcher instanceof RegExp ? String(matcher) : JSON.stringify(matcher)
