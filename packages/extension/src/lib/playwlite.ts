@@ -243,14 +243,20 @@ export class Locator {
           return yield* new StrictModeViolation({ selector, count: elements.length })
         }
         const element = elements[0]
-        const matches =
-          state === "attached"
-            ? !!element
-            : state === "detached"
-              ? !element
-              : state === "visible"
-                ? !!element && isElementVisible(element)
-                : !element || !isElementVisible(element)
+        const matches = (() => {
+          switch (state) {
+            case "attached":
+              return !!element
+            case "detached":
+              return !element
+            case "visible":
+              return !!element && isElementVisible(element)
+            case "hidden":
+              return !element || !isElementVisible(element)
+            default:
+              return state satisfies never
+          }
+        })()
 
         if (!matches) {
           return yield* new LocatorTimeout({
@@ -495,17 +501,22 @@ export class Locator {
         return yield* new StrictModeViolation({ selector, count: elements.length })
       }
       const element = elements[0]!
-      return state === "visible"
-        ? isElementVisible(element)
-        : state === "hidden"
-          ? !isElementVisible(element)
-          : state === "enabled"
-            ? !isDisabled(element)
-            : state === "disabled"
-              ? isDisabled(element)
-              : state === "editable"
-                ? isEditable(element)
-                : element instanceof HTMLInputElement && element.checked
+      switch (state) {
+        case "visible":
+          return isElementVisible(element)
+        case "hidden":
+          return !isElementVisible(element)
+        case "enabled":
+          return !isDisabled(element)
+        case "disabled":
+          return isDisabled(element)
+        case "editable":
+          return isEditable(element)
+        case "checked":
+          return element instanceof HTMLInputElement && element.checked
+        default:
+          return state satisfies never
+      }
     })
   }
 }

@@ -1,16 +1,27 @@
 This project, tx, is a browser automation split into server/extension architecture to bypass bot detection and utilize a normal browser extension.
 
+Our priorities are:
+
+- Maintainability
+- Readability
+- Reliability
+- Performance
+
+To improve readability, do not write one off logics as helper functions. Inline them. Once it needs to be reused, refactor it into a reusable function.
+If a tradeoff is required, choose correctness and robustness over short-term convenience.
+Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
+
 Use pnpm as package manager.
+Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx).
+
+Never explicitly write types unless needed. Prefer type inference.
+
 Run `pnpm run check` after completing a task (typecheck per package, `vitest` at workspace root, lint and format at workspace root).
 
 ## Workspace
 
 - `packages/server` — CLI / RPC server
 - `packages/extension` — browser extension
-
-Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx).
-
-Never explicitly write types unless needed. Prefer type inference.
 
 # References Directory
 
@@ -23,3 +34,4 @@ Available references:
 
 - effect-smol - Effect v4
 - wxt - WXT (extension framework; manifest, entrypoints, MV2/MV3 conversion)
+- playwright - Playwright
