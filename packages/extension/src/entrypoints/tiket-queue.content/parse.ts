@@ -27,11 +27,11 @@ const tryRead = (page: Page, source: string, selector: string) =>
 
     let peopleAhead: number | undefined
     if (/^\d{1,3}(\.\d{3})+$/.test(raw)) {
-      peopleAhead = Number(raw.replaceAll(".", ""))
+      peopleAhead = Number.parseInt(raw.replaceAll(".", ""), 10)
     } else if (/^\d{1,3}(,\d{3})+$/.test(raw)) {
-      peopleAhead = Number(raw.replaceAll(",", ""))
+      peopleAhead = Number.parseInt(raw.replaceAll(",", ""), 10)
     } else {
-      const parsed = Number(raw.replaceAll(",", ""))
+      const parsed = Number.parseInt(raw.replaceAll(",", ""), 10)
       if (Number.isInteger(parsed) && parsed >= 1) {
         peopleAhead = parsed
       }
