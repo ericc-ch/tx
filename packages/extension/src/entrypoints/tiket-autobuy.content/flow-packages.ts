@@ -31,6 +31,11 @@ export const runPackages = Effect.gen(function* () {
     available.push({ title, card, selectButton })
   }
 
+  if (available.length === 0) {
+    yield* Effect.logDebug("No packages available")
+    return "no-package" as const
+  }
+
   yield* Effect.logInfo(
     "Available packages",
     available.map((p) => p.title),
@@ -39,7 +44,7 @@ export const runPackages = Effect.gen(function* () {
   for (const priority of CATEGORY_PRIORITY) {
     const match = available.find((pkg) => pkg.title.toLowerCase().includes(priority.toLowerCase()))
     if (!match) {
-      yield* Effect.logInfo("No package found for", priority)
+      yield* Effect.logDebug("No package found for", priority)
       continue
     }
 
@@ -77,13 +82,22 @@ export const runPackages = Effect.gen(function* () {
         yield* decrementButton.click({ timeout: Duration.infinity })
       }
 
+      yield* Effect.sleep(Duration.millis(10))
       const next = Number.parseInt(yield* quantityInput.inputValue(), 10)
+
       if (next === current) break
     }
 
     const quantity = Number.parseInt(yield* quantityInput.inputValue(), 10)
     if (quantity !== BUY_COUNT) {
-      yield* Effect.logInfo("Quantity", BUY_COUNT, "not available for", match.title)
+      yield* Effect.logInfo(
+        "Quantity",
+        BUY_COUNT,
+        "not available for",
+        match.title,
+        ". Found",
+        quantity,
+      )
       continue
     }
 
@@ -95,6 +109,6 @@ export const runPackages = Effect.gen(function* () {
     return "submitted" as const
   }
 
-  yield* Effect.logInfo("No priority package available, exiting")
+  yield* Effect.logDebug("No priority package available, exiting")
   return "no-package" as const
 })

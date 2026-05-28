@@ -96,9 +96,7 @@ describe("package locale matchers", () => {
     ["../../../fixtures/lany-packages-en.html", "en"],
     ["../../../fixtures/lany-packages-id.html", "id"],
   ])("finds available packages in %s fixture", async (fixturePath) => {
-    await Effect.runPromise(
-      loadFixture(fixturePath).pipe(Effect.provide(NodePlatform)),
-    )
+    await Effect.runPromise(loadFixture(fixturePath).pipe(Effect.provide(NodePlatform)))
     makeVisible()
 
     expect(await Effect.runPromise(countAvailablePackages())).toBe(4)

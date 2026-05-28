@@ -42,8 +42,8 @@ type SelectOption =
       readonly index?: number
     }
 
-const defaultTimeout = Duration.seconds(5)
-const pollInterval = Duration.millis(20)
+const defaultTimeout = Duration.seconds(30)
+const pollInterval = Duration.millis(10)
 
 export class LocatorTimeout extends Data.TaggedError("LocatorTimeout")<{
   readonly selector: string
@@ -64,11 +64,7 @@ export class StrictModeViolation extends Data.TaggedError("StrictModeViolation")
   }
 }
 
-type NotInteractableReason =
-  | "disabled"
-  | "hidden"
-  | "not-editable"
-  | "wrong-element"
+type NotInteractableReason = "disabled" | "hidden" | "not-editable" | "wrong-element"
 
 export class NotInteractable extends Data.TaggedError("NotInteractable")<{
   readonly selector: string

@@ -97,7 +97,9 @@ describe("Playwlite", () => {
       expect(await Effect.runPromise(page().locator("#outer").getAttribute("name"))).toBe("value")
       expect(await Effect.runPromise(page().locator("#outer").getAttribute("missing"))).toBeNull()
       expect(await Effect.runPromise(page().getAttribute("#outer", "name"))).toBe("value")
-      expect(await Effect.runPromise(page().locator("#inner").textContent())).toBe("Text,\nmore text")
+      expect(await Effect.runPromise(page().locator("#inner").textContent())).toBe(
+        "Text,\nmore text",
+      )
       expect(await Effect.runPromise(page().textContent("#inner"))).toBe("Text,\nmore text")
       expect(await Effect.runPromise(page().locator("#inner").innerText())).toBe("Text, more text")
       expect(await Effect.runPromise(page().innerText("#inner"))).toBe("Text, more text")
@@ -385,7 +387,9 @@ describe("Playwlite", () => {
       `)
       const select = makeActionable("select") as HTMLSelectElement
 
-      const selected = await Effect.runPromise(page().locator("select").selectOption(["blue", "green"]))
+      const selected = await Effect.runPromise(
+        page().locator("select").selectOption(["blue", "green"]),
+      )
 
       expect(selected).toEqual(["blue"])
       expect(select.value).toBe("blue")

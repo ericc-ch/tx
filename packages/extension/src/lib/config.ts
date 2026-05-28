@@ -41,9 +41,9 @@ export const registerConfigCapture = Effect.gen(function* () {
         const encoded = Option.fromNullishOr(new URL(url).searchParams.get(INIT_PAYLOAD_PARAM))
         if (Option.isNone(encoded)) return
 
-        const payload = yield* Schema.decodeUnknownEffect(InitPayloadFromUrlParam)(encoded.value).pipe(
-          Effect.orDie,
-        )
+        const payload = yield* Schema.decodeUnknownEffect(InitPayloadFromUrlParam)(
+          encoded.value,
+        ).pipe(Effect.orDie)
 
         yield* config.set(payload)
         yield* Effect.logInfo("Captured and persisted config:", payload)

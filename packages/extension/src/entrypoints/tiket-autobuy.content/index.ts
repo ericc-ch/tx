@@ -1,6 +1,6 @@
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
-import { Duration, Effect } from "effect"
+import { Effect } from "effect"
 import { runOrder } from "./flow-order"
 import { runOverview } from "./flow-overview"
 import { runPackages } from "./flow-packages"
@@ -17,13 +17,11 @@ const getBrowserState = (): BrowserState => {
 }
 
 const main = Effect.gen(function* () {
-  yield* Effect.logInfo("Autobuy started")
-
   let flowStep: FlowStep = "routing"
 
   while (flowStep !== "done") {
     const browserState = getBrowserState()
-    yield* Effect.logInfo("Autobuy step", "browserState:", browserState, "flowStep:", flowStep)
+    yield* Effect.logDebug("Autobuy step", "browserState:", browserState, "flowStep:", flowStep)
 
     switch (flowStep) {
       case "routing":
@@ -43,7 +41,6 @@ const main = Effect.gen(function* () {
           }
           case "unknown":
             yield* Effect.logInfo("Unknown page, waiting...")
-            yield* Effect.sleep(Duration.millis(100))
             break
           default:
             browserState satisfies never
@@ -54,8 +51,7 @@ const main = Effect.gen(function* () {
           const result = yield* runOrder
           if (result === "done") flowStep = "done"
         } else {
-          yield* Effect.logInfo("Waiting for order page", "browserState:", browserState)
-          yield* Effect.sleep(Duration.millis(100))
+          yield* Effect.logDebug("Waiting for order page", "browserState:", browserState)
         }
         break
       default:
