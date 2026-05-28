@@ -1,4 +1,4 @@
-import { Context, Data, Duration, Effect, Layer, Ref, Schedule } from "effect"
+import { Data, Duration, Effect, Ref, Schedule } from "effect"
 
 type TextMatcher = string | RegExp
 
@@ -552,12 +552,6 @@ export class Page {
   private static locatorBy(query: Query, label: string) {
     return new Locator(query, label)
   }
-}
-
-export class Playwlite extends Context.Service<Playwlite>()("tx/Playwlite", {
-  make: Effect.sync(() => new Page(document)),
-}) {
-  static layer = Layer.effect(this, this.make)
 }
 
 const waitUntil = <A>(
