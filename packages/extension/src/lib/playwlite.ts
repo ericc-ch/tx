@@ -680,13 +680,13 @@ const matchesRole = (element: Element, role: string, options: ByRoleOptions) => 
   if (options.pressed !== undefined && attrBool(element, "aria-pressed") !== options.pressed)
     return false
   if (options.level !== undefined) {
-    const ariaLevel = Number(element.getAttribute("aria-level"))
+    const ariaLevel = Number.parseInt(element.getAttribute("aria-level") ?? "", 10)
     const tagLevel = /^h([1-6])$/i.exec(element.tagName)
     const level =
       Number.isFinite(ariaLevel) && ariaLevel > 0
         ? ariaLevel
         : tagLevel
-          ? Number(tagLevel[1])
+          ? Number.parseInt(tagLevel[1] ?? "", 10)
           : undefined
     if (level !== options.level) return false
   }
@@ -805,7 +805,7 @@ const textContent = (element: Element) => normalize(element.textContent ?? "")
 const normalize = (value: string) => value.replace(/\s+/g, " ").trim()
 
 const formatMatcher = (matcher: TextMatcher) =>
-  matcher instanceof RegExp ? String(matcher) : JSON.stringify(matcher)
+  matcher instanceof RegExp ? matcher.toString() : JSON.stringify(matcher)
 
 const toDuration = (input: Duration.Input | undefined) =>
   Duration.millis(Duration.toMillis(input ?? defaultTimeout))
