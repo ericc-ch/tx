@@ -92,8 +92,9 @@ export const runPackages = Effect.gen(function* () {
       .first()
       .click({ timeout: Duration.infinity })
     yield* Effect.logInfo("Ordered", BUY_COUNT, "from", match.title)
-    return
+    return "submitted" as const
   }
 
   yield* Effect.logInfo("No priority package available, exiting")
+  return "no-package" as const
 })
