@@ -13,17 +13,14 @@ interface BrowserManagerOptions {
   extensionPath: string
 }
 
-const randomBrowserId = () => {
-  const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
-  const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
-  return `${adjective}-${noun}`
-}
+const pickWord = <T>(words: readonly T[]) => words[Math.floor(Math.random() * words.length)]
 
 export class BrowserManager extends Context.Service<BrowserManager>()("BrowserManager", {
   make: Effect.fn(function* ({ browserPath, extensionPath }: BrowserManagerOptions) {
     const fs = yield* FileSystem.FileSystem
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const browsers = new Map<string, BrowserEntry>()
+    let nextBrowserIndex = 1
 
     const extensionExists = yield* fs.exists(extensionPath)
     if (!extensionExists) {
@@ -36,11 +33,9 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
 
     const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
       const browserId = yield* Effect.sync(() => {
-        let id = randomBrowserId()
-        while (browsers.has(id)) {
-          id = randomBrowserId()
-        }
-        return id
+        const adjective = pickWord(words.adjectives)
+        const noun = pickWord(words.nouns)
+        return `${port}-${nextBrowserIndex++}-${adjective}-${noun}`
       })
       const dir = yield* fs.makeTempDirectory({ prefix: browserId })
       yield* Effect.logInfo(`Profile created for ${browserId} at`, dir)
