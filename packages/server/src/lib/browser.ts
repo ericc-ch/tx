@@ -1,4 +1,4 @@
-import { Context, Effect, FileSystem, Layer, pipe, Schema } from "effect"
+import { Context, Effect, FileSystem, Layer, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
 import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "../rpc/schema.ts"
@@ -34,22 +34,14 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       )
     }
 
-    const removeProfile = (profilePath: string) =>
-      pipe(
-        fs.remove(profilePath, { recursive: true, force: true }),
-        Effect.catchTag("PlatformError", (err) => Effect.logError("Failed to remove profile", err)),
-      )
-
-    const allocateBrowserId = () => {
-      let browserId = randomBrowserId()
-      while (browsers.has(browserId)) {
-        browserId = randomBrowserId()
-      }
-      return browserId
-    }
-
     const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
-      const browserId = allocateBrowserId()
+      const browserId = yield* Effect.sync(() => {
+        let id = randomBrowserId()
+        while (browsers.has(id)) {
+          id = randomBrowserId()
+        }
+        return id
+      })
       const dir = yield* fs.makeTempDirectory({ prefix: browserId })
       yield* Effect.logInfo(`Profile created for ${browserId} at`, dir)
 
@@ -62,26 +54,46 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       const handle = yield* spawner.spawn(command)
 
       const entry = { handle, profilePath: dir } satisfies BrowserEntry
-      browsers.set(browserId, entry)
+      yield* Effect.sync(() => {
+        browsers.set(browserId, entry)
+      })
       yield* Effect.logInfo(`Browser spawned ${browserId}`, entry)
 
       return browserId
     })
 
     const kill = Effect.fn(function* (browserId: string) {
-      const entry = browsers.get(browserId)
+      const entry = yield* Effect.sync(() => {
+        const e = browsers.get(browserId)
+        if (e) browsers.delete(browserId)
+        return e
+      })
       if (!entry) return
 
-      yield* entry.handle.kill()
-      yield* removeProfile(entry.profilePath)
-      browsers.delete(browserId)
+      yield* Effect.ensuring(
+        entry.handle
+          .kill()
+          .pipe(
+            Effect.catchTag("PlatformError", (err) =>
+              Effect.logWarning(`Browser ${browserId} kill failed (may already be dead)`, err),
+            ),
+          ),
+        fs
+          .remove(entry.profilePath, { recursive: true, force: true })
+          .pipe(
+            Effect.catchTag("PlatformError", (err) =>
+              Effect.logError(`Failed to remove profile for ${browserId}`, err),
+            ),
+          ),
+      )
     })
 
     yield* Effect.addFinalizer(
       Effect.fn(function* () {
-        for (const [browserId, entry] of browsers.entries()) {
-          yield* Effect.logInfo(`Cleaning up browser profile ${browserId}`)
-          yield* removeProfile(entry.profilePath)
+        const browserIds = yield* Effect.sync(() => Array.from(browsers.keys()))
+        for (const browserId of browserIds) {
+          yield* Effect.logInfo(`Cleaning up browser ${browserId}`)
+          yield* kill(browserId)
         }
       }),
     )
@@ -89,6 +101,5 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
     return { spawn, kill }
   }),
 }) {
-  static layer = (options: BrowserManagerOptions) =>
-    Layer.effect(this, this.make(options))
+  static layer = (options: BrowserManagerOptions) => Layer.effect(this, this.make(options))
 }

@@ -23,9 +23,7 @@ export const RpcHandlers = ServerRpcs.toLayer(
             yield* Effect.logWarning(
               `Closing browser ${browserId} because queue ${peopleAhead} exceeds threshold ${config.threshold}`,
             )
-            yield* browserManager
-              .kill(browserId)
-              .pipe(Effect.catch((err) => Effect.logError("Failed to kill browser", err)))
+            yield* browserManager.kill(browserId)
           }
           return { peopleAhead, threshold: config.threshold, closed }
         }),
