@@ -105,7 +105,7 @@ describe("package locale matchers", () => {
   })
 
   it("matches order button labels in both locales", () => {
-    expect(ORDER_BUTTON_TEXT.test("Order")).toBe(true)
     expect(ORDER_BUTTON_TEXT.test("Pesan")).toBe(true)
+    expect(ORDER_BUTTON_TEXT.test("Book")).toBe(true)
   })
 })
