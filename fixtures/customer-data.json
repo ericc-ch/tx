@@ -1,0 +1,30 @@
+[
+  {
+    "Timestamp": "5/23/2026 12:20:33",
+    "Nama Lengkap": "Tono Tenda",
+    "Email": "tonotenda@example.com",
+    "Tanggal Lahir": "7/13/2003",
+    "Gender": "Female",
+    "NIK/KTP": "3122022302230022",
+    "Nomor Telepon (contoh: 81234567890)": "082259225223",
+    "Kategori Ticket": "cat 1, last forever fan, festival",
+    "Jumlah Ticket": "1",
+    "Day (contoh: day 1)": "Day 1 /Day2",
+    "Kode Membership (Presale Only)": "BA203480222",
+    "Metode Pembayaran": "BCA "
+  },
+  {
+    "Timestamp": "5/23/2026 16:08:07",
+    "Nama Lengkap": "Tronton Tuntu",
+    "Email": "tronton@gmail.com",
+    "Tanggal Lahir": "1/4/2001",
+    "Gender": "Female",
+    "NIK/KTP": "3207042201110044",
+    "Nomor Telepon (contoh: 81234567890)": "085122005833",
+    "Kategori Ticket": "festival, cat 1",
+    "Jumlah Ticket": "2",
+    "Day (contoh: day 1)": "Day 1",
+    "Kode Membership (Presale Only)": "BA767815122",
+    "Metode Pembayaran": "VA MANDIRI"
+  }
+]

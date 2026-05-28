@@ -15,6 +15,19 @@ interface BrowserManagerOptions {
 
 const pickWord = <T>(words: ReadonlyArray<T>) => words[Math.floor(Math.random() * words.length)]
 
+const browserSwitches = [
+  "--no-first-run",
+  "--no-default-browser-check",
+  "--disable-default-apps",
+  "--disable-background-timer-throttling",
+  "--disable-renderer-backgrounding",
+  "--disable-backgrounding-occluded-windows",
+  "--disable-hang-monitor",
+  "--disable-prompt-on-repost",
+  "--disable-popup-blocking",
+  "--disable-component-update",
+]
+
 export class BrowserManager extends Context.Service<BrowserManager>()("BrowserManager", {
   make: Effect.fn(function* ({ browserPath, extensionPath }: BrowserManagerOptions) {
     const fs = yield* FileSystem.FileSystem
@@ -45,7 +58,12 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       const urlWithInit = new URL(url)
       urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)
 
-      const command = ChildProcess.make`${browserPath} --user-data-dir=${dir} --load-extension=${extensionPath} --no-first-run --no-default-browser-check --disable-default-apps ${urlWithInit.toString()}`
+      const command = ChildProcess.make(browserPath, [
+        `--user-data-dir=${dir}`,
+        `--load-extension=${extensionPath}`,
+        ...browserSwitches,
+        urlWithInit.toString(),
+      ])
       const handle = yield* spawner.spawn(command)
 
       const entry = { handle, profilePath: dir } satisfies BrowserEntry
