@@ -25,7 +25,7 @@ const main = Effect.gen(function* () {
         yield* runOverview
         break
       case "packages":
-        yield* runPackages(() => getPagePhase() === "packages")
+        yield* runPackages
         break
       case "order": {
         const result = yield* runOrder
