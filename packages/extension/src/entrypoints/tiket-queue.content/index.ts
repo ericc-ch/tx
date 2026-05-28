@@ -17,8 +17,8 @@ const main = Effect.gen(function* () {
   const position = yield* readPeopleAhead().pipe(
     Effect.tap((read) =>
       read.peopleAhead !== undefined
-        ? Effect.logInfo(`Queue read OK: ${read.summary}`)
-        : Effect.logInfo(`Queue read failed: ${read.summary}`),
+        ? Effect.logInfo("Queue read OK:", read.summary)
+        : Effect.logInfo("Queue read failed:", read.summary),
     ),
     Effect.repeat({
       until: (read) => read.peopleAhead !== undefined,
@@ -26,7 +26,7 @@ const main = Effect.gen(function* () {
     }),
   )
 
-  yield* Effect.logInfo(`Reporting queue position ${position.peopleAhead} (${position.summary})`)
+  yield* Effect.logInfo("Reporting queue position", position.peopleAhead, position.summary)
 
   yield* client
     .ReportQueuePosition({
@@ -36,12 +36,22 @@ const main = Effect.gen(function* () {
     .pipe(
       Effect.tap((ack) =>
         Effect.logInfo(
-          `Queue report OK: peopleAhead=${position.peopleAhead}, threshold=${ack.threshold}, closed=${ack.closed} (${position.summary})`,
+          "Queue report OK",
+          "peopleAhead:",
+          position.peopleAhead,
+          "threshold:",
+          ack.threshold,
+          "closed:",
+          ack.closed,
+          position.summary,
         ),
       ),
       Effect.tapError((cause) =>
         Effect.logError(
-          `Queue report failed: peopleAhead=${position.peopleAhead} (${position.summary})`,
+          "Queue report failed",
+          "peopleAhead:",
+          position.peopleAhead,
+          position.summary,
           cause,
         ),
       ),

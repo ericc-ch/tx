@@ -47,7 +47,7 @@ const tiketCommand = Command.make(
       const runServerAndBrowser = Effect.gen(function* () {
         const server = yield* HttpServer.HttpServer
         const port = server.address._tag === "TcpAddress" ? server.address.port : 0
-        yield* Effect.logInfo(`Server is listening on port ${port}`)
+        yield* Effect.logInfo("Server is listening on port", port)
 
         const browser = yield* BrowserManager
         const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))

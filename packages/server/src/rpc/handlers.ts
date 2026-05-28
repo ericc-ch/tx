@@ -17,11 +17,16 @@ export const RpcHandlers = ServerRpcs.toLayer(
     return ServerRpcs.of({
       ReportQueuePosition: ({ peopleAhead, browserId }) =>
         Effect.gen(function* () {
-          yield* Effect.logInfo(`Browser ${browserId} reported queue: ${peopleAhead}`)
+          yield* Effect.logInfo("Browser", browserId, "reported queue:", peopleAhead)
           const closed = peopleAhead > config.threshold
           if (closed) {
             yield* Effect.logWarning(
-              `Closing browser ${browserId} because queue ${peopleAhead} exceeds threshold ${config.threshold}`,
+              "Closing browser",
+              browserId,
+              "because queue",
+              peopleAhead,
+              "exceeds threshold",
+              config.threshold,
             )
             yield* browserManager.kill(browserId)
           }

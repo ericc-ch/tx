@@ -1,6 +1,6 @@
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
-import { Duration, Effect } from "effect"
+import { Effect } from "effect"
 import { runOrder } from "./flow-order"
 import { runOverview } from "./flow-overview"
 import { runPackages } from "./flow-packages"
@@ -18,7 +18,7 @@ const main = Effect.gen(function* () {
 
   while (true) {
     const phase = getPagePhase()
-    yield* Effect.logInfo(`Autobuy step (phase: ${phase ?? "unknown"})`)
+    yield* Effect.logInfo("Autobuy step", "phase:", phase ?? "unknown")
 
     switch (phase) {
       case "overview":
@@ -35,8 +35,6 @@ const main = Effect.gen(function* () {
       default:
         yield* Effect.logInfo("Unknown page, waiting...")
     }
-
-    yield* Effect.sleep(Duration.millis(50))
   }
 })
 

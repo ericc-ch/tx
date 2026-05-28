@@ -9,5 +9,5 @@ export const runOverview = Effect.gen(function* () {
   yield* Effect.sync(() => {
     location.assign(packagesUrl)
   })
-  yield* Effect.logInfo(`Navigating to ${packagesUrl}`)
+  yield* Effect.logInfo("Navigating to", packagesUrl)
 })

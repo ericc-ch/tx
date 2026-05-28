@@ -6,7 +6,7 @@ export const ORDER_BUTTON_TEXT = /^(pesan|book)$/i
 export const SOLD_OUT_TEXT = /^(terjual habis|sold out)$/i
 
 const CATEGORY_PRIORITY = ["cat 6", "last forever fan", "festival"]
-const BUY_COUNT = 1
+const BUY_COUNT = 6
 
 export const runPackages = Effect.gen(function* () {
   const page = new Page(document)
@@ -39,24 +39,51 @@ export const runPackages = Effect.gen(function* () {
   for (const priority of CATEGORY_PRIORITY) {
     const match = available.find((pkg) => pkg.title.toLowerCase().includes(priority.toLowerCase()))
     if (!match) {
-      yield* Effect.logInfo(`No available package for priority "${priority}"`)
+      yield* Effect.logInfo("No package found for", priority)
       continue
     }
+
+    yield* Effect.logInfo("Package found for", priority, match.title)
 
     const quantityInput = match.card
       .locator('input[type="number"]')
       .filter({ visible: true })
       .first()
+    const quantityEditor = match.card
+      .locator('[data-testid^="ticket-qty-editor-"]')
+      .filter({ visible: true })
+      .first()
 
     if (!(yield* quantityInput.isVisible())) {
       yield* match.selectButton.click({ timeout: Duration.infinity })
-      yield* Effect.logInfo(`Clicked Select for "${match.title}"`)
-      yield* quantityInput.waitFor({ state: "attached", timeout: Duration.infinity })
+      yield* Effect.logInfo("Expanding", match.title)
+      yield* quantityInput.waitFor({ state: "visible", timeout: Duration.infinity })
     }
 
-    yield* quantityInput.fill(BUY_COUNT.toString(), { timeout: Duration.infinity })
-    if (Number.parseInt(yield* quantityInput.inputValue(), 10) !== BUY_COUNT) {
-      yield* Effect.logInfo(`Quantity ${BUY_COUNT} not available for "${match.title}"`)
+    const decrementButton = quantityEditor.locator('button[type="button"]').nth(0)
+    const incrementButton = quantityEditor.locator('button[type="button"]').nth(1)
+
+    for (let attempts = 0; attempts < BUY_COUNT; attempts++) {
+      const current = Number.parseInt(yield* quantityInput.inputValue(), 10)
+      if (current === BUY_COUNT) break
+      if (Number.isNaN(current)) {
+        yield* Effect.logInfo("Quantity input is invalid for", match.title)
+        break
+      }
+
+      if (current < BUY_COUNT) {
+        yield* incrementButton.click({ timeout: Duration.infinity })
+      } else {
+        yield* decrementButton.click({ timeout: Duration.infinity })
+      }
+
+      const next = Number.parseInt(yield* quantityInput.inputValue(), 10)
+      if (next === current) break
+    }
+
+    const quantity = Number.parseInt(yield* quantityInput.inputValue(), 10)
+    if (quantity !== BUY_COUNT) {
+      yield* Effect.logInfo("Quantity", BUY_COUNT, "not available for", match.title)
       continue
     }
 
@@ -64,7 +91,7 @@ export const runPackages = Effect.gen(function* () {
       .getByRole("button", { name: ORDER_BUTTON_TEXT, disabled: false })
       .first()
       .click({ timeout: Duration.infinity })
-    yield* Effect.logInfo(`Ordered ${BUY_COUNT} from "${match.title}"`)
+    yield* Effect.logInfo("Ordered", BUY_COUNT, "from", match.title)
     return
   }
 
