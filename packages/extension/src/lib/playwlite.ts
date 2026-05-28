@@ -68,8 +68,6 @@ type NotInteractableReason =
   | "disabled"
   | "hidden"
   | "not-editable"
-  | "obscured"
-  | "unstable"
   | "wrong-element"
 
 export class NotInteractable extends Data.TaggedError("NotInteractable")<{
@@ -271,7 +269,7 @@ export class Locator {
   }
 
   click(options: ActionOptions = {}) {
-    const actionable = this.actionable(["visible", "stable", "enabled", "hit-target"], options)
+    const actionable = this.actionable(["visible", "enabled"], options)
     return Effect.gen(function* () {
       const element = yield* actionable
       if (options.trial) return
@@ -343,7 +341,7 @@ export class Locator {
   }
 
   setChecked(checked: boolean, options: ActionOptions = {}) {
-    const actionable = this.actionable(["visible", "stable", "enabled", "hit-target"], options)
+    const actionable = this.actionable(["visible", "enabled"], options)
     const selector = this.selector
     return Effect.gen(function* () {
       const element = yield* actionable
@@ -421,7 +419,7 @@ export class Locator {
   }
 
   private actionable(
-    checks: ReadonlyArray<"visible" | "stable" | "enabled" | "editable" | "hit-target">,
+    checks: ReadonlyArray<"visible" | "enabled" | "editable">,
     options: ActionOptions,
   ) {
     const resolved = this.resolve()
@@ -438,49 +436,6 @@ export class Locator {
           }
           if (checks.includes("editable") && !isEditable(element)) {
             return yield* new NotInteractable({ selector, reason: "not-editable" })
-          }
-          if (checks.includes("stable")) {
-            const stable = yield* Effect.callback<boolean>((resume) => {
-              const first = element.getBoundingClientRect()
-              let secondFrame: number | undefined
-              const firstFrame = requestAnimationFrame(() => {
-                secondFrame = requestAnimationFrame(() => {
-                  const second = element.getBoundingClientRect()
-                  resume(
-                    Effect.succeed(
-                      first.x === second.x &&
-                        first.y === second.y &&
-                        first.width === second.width &&
-                        first.height === second.height,
-                    ),
-                  )
-                })
-              })
-              return Effect.sync(() => {
-                cancelAnimationFrame(firstFrame)
-                if (secondFrame !== undefined) cancelAnimationFrame(secondFrame)
-              })
-            })
-            if (!stable) {
-              return yield* new NotInteractable({ selector, reason: "unstable" })
-            }
-          }
-
-          yield* Effect.sync(() => {
-            element.scrollIntoView({ block: "center", inline: "center" })
-          })
-
-          if (checks.includes("hit-target")) {
-            const hitTargetReceivesEvents = yield* Effect.sync(() => {
-              const rect = element.getBoundingClientRect()
-              const x = rect.left + rect.width / 2
-              const y = rect.top + rect.height / 2
-              const hit = document.elementFromPoint(x, y)
-              return !!hit && (hit === element || element.contains(hit))
-            })
-            if (!hitTargetReceivesEvents) {
-              return yield* new NotInteractable({ selector, reason: "obscured" })
-            }
           }
         }
         return element
