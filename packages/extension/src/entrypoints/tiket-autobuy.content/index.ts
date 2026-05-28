@@ -1,9 +1,9 @@
 import { Locator, Page } from "@/lib/playwlite"
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
-import { Duration, Effect } from "effect"
+import { Duration, Effect, Schedule } from "effect"
+import { findOverviewBuyButton } from "./overview"
 
-const BUY_BUTTON_TEXT = /beli\s+tiket\s+sekarang/i
 const PILIH_TEXT = /^pilih$/i
 const PESAN_TEXT = /^pesan$/i
 
@@ -39,17 +39,15 @@ const textContent = (locator: Locator) =>
 const runOverview = Effect.gen(function* () {
   const page = new Page(document)
 
-  while (true) {
-    const buyButton = yield* firstLocator(
-      page.getByRole("button", { name: BUY_BUTTON_TEXT, disabled: false }),
-    )
-    if (buyButton) {
-      yield* buyButton.click()
-      yield* Effect.logInfo('Clicked "Beli tiket sekarang"')
-      return
-    }
-    yield* Effect.sleep(Duration.millis(20))
-  }
+  const buyButton = yield* findOverviewBuyButton(page).pipe(
+    Effect.repeat({
+      until: (button) => button !== undefined,
+      schedule: Schedule.spaced(Duration.millis(20)),
+    }),
+  )
+
+  yield* buyButton.click()
+  yield* Effect.logInfo(`Clicked "${(yield* buyButton.textContent())?.trim()}"`)
 })
 
 const runPackages = Effect.gen(function* () {
