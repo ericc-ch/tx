@@ -6,21 +6,21 @@
   "scripts": {
     "build": "pnpm -r --if-present run build",
     "format": "oxfmt",
-    "lint": "oxlint",
+    "lint": "oxlint --fix",
     "check": "pnpm run typecheck && pnpm run test && pnpm run lint",
     "prepare": "simple-git-hooks && effect-language-service patch && node scripts/references.ts",
     "test": "vitest run --passWithNoTests",
     "typecheck": "pnpm -r --if-present run typecheck"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.86.1",
+    "@effect/language-service": "^0.86.2",
     "@types/node": "^25.9.1",
     "jsdom": "^29.1.1",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.66.0",
     "simple-git-hooks": "^2.13.1",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.7"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm run check"

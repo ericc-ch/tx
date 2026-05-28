@@ -13,7 +13,7 @@ interface BrowserManagerOptions {
   extensionPath: string
 }
 
-const pickWord = <T>(words: readonly T[]) => words[Math.floor(Math.random() * words.length)]
+const pickWord = <T>(words: ReadonlyArray<T>) => words[Math.floor(Math.random() * words.length)]
 
 export class BrowserManager extends Context.Service<BrowserManager>()("BrowserManager", {
   make: Effect.fn(function* ({ browserPath, extensionPath }: BrowserManagerOptions) {

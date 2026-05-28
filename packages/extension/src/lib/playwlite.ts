@@ -81,7 +81,7 @@ export class NotInteractable extends Data.TaggedError("NotInteractable")<{
 
 export type PlaywliteError = LocatorTimeout | StrictModeViolation | NotInteractable
 
-type Query = () => Element[]
+type Query = () => Array<Element>
 
 export class Locator {
   private readonly query: Query
@@ -95,7 +95,7 @@ export class Locator {
   locator(selector: string, options?: LocatorOptions) {
     return new Locator(
       () => {
-        const elements: Element[] = []
+        const elements: Array<Element> = []
         for (const root of this.query()) {
           elements.push(...root.querySelectorAll(selector))
         }
@@ -594,7 +594,7 @@ const waitUntil = <A>(
 const allElements = (root: ParentNode) => [...root.querySelectorAll("*")]
 
 const allDescendants = (roots: ReadonlyArray<Element>) => {
-  const elements: Element[] = []
+  const elements: Array<Element> = []
   for (const root of roots) {
     elements.push(root)
     elements.push(...root.querySelectorAll("*"))

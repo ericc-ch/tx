@@ -42,6 +42,7 @@
     // "react/void-dom-elements-no-children": "error",
     // "react/button-has-type": "error",
 
+    "typescript/array-type": ["error", { "default": "generic" }],
     "typescript/no-deprecated": "error",
     "typescript/no-dynamic-delete": "error",
     "typescript/no-explicit-any": "error",

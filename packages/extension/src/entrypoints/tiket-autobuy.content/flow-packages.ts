@@ -15,7 +15,7 @@ export const runPackages = Effect.gen(function* () {
   for (const priority of CATEGORY_PRIORITY) {
     const cards = page.getByTestId("package-card").filter({ visible: true })
     const count = yield* cards.count()
-    const available: { title: string; card: Locator; selectButton: Locator }[] = []
+    const available: Array<{ title: string; card: Locator; selectButton: Locator }> = []
 
     for (let index = 0; index < count; index++) {
       const card = cards.nth(index)
@@ -82,7 +82,7 @@ export const runPackages = Effect.gen(function* () {
 
   const cards = page.getByTestId("package-card").filter({ visible: true })
   const count = yield* cards.count()
-  const available: { title: string; card: Locator; selectButton: Locator }[] = []
+  const available: Array<{ title: string; card: Locator; selectButton: Locator }> = []
 
   for (let index = 0; index < count; index++) {
     const card = cards.nth(index)
