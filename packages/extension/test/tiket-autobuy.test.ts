@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
-import { findOverviewBuyButton } from "../src/entrypoints/tiket-autobuy.content/overview"
 import { Page } from "../src/lib/playwlite"
 import { loadFixture, NodePlatform, resetDom } from "./util"
+
+const BUY_BUTTON_TEXT = /(?:beli\s+tiket\s+sekarang|buy\s+ticket\s+now)/i
 
 const makeButtonsVisible = () => {
   for (const button of document.querySelectorAll("button")) {
@@ -23,11 +24,18 @@ const makeButtonsVisible = () => {
   }
 }
 
-describe("findOverviewBuyButton", () => {
+describe("overview buy button", () => {
   beforeEach(resetDom)
 
   it("returns undefined when the buy button is missing", async () => {
-    expect(await Effect.runPromise(findOverviewBuyButton(new Page(document)))).toBeUndefined()
+    const button = await Effect.runPromise(
+      Effect.gen(function* () {
+        const page = new Page(document)
+        const locator = page.getByRole("button", { name: BUY_BUTTON_TEXT, disabled: false })
+        return (yield* locator.count()) > 0 ? locator.first() : undefined
+      }),
+    )
+    expect(button).toBeUndefined()
   })
 
   it("finds buy button on Indonesian overview fixture", async () => {
@@ -35,7 +43,9 @@ describe("findOverviewBuyButton", () => {
       Effect.gen(function* () {
         yield* loadFixture("../../../fixtures/lany-overview.html")
         makeButtonsVisible()
-        return yield* findOverviewBuyButton(new Page(document))
+        const page = new Page(document)
+        const locator = page.getByRole("button", { name: BUY_BUTTON_TEXT, disabled: false })
+        return (yield* locator.count()) > 0 ? locator.first() : undefined
       }).pipe(Effect.provide(NodePlatform)),
     )
 
@@ -48,7 +58,9 @@ describe("findOverviewBuyButton", () => {
       Effect.gen(function* () {
         yield* loadFixture("../../../fixtures/lany-overview-en.html")
         makeButtonsVisible()
-        return yield* findOverviewBuyButton(new Page(document))
+        const page = new Page(document)
+        const locator = page.getByRole("button", { name: BUY_BUTTON_TEXT, disabled: false })
+        return (yield* locator.count()) > 0 ? locator.first() : undefined
       }).pipe(Effect.provide(NodePlatform)),
     )
 
