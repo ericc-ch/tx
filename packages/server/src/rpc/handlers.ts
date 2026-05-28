@@ -28,12 +28,8 @@ export const RpcHandlers = ServerRpcs.toLayer(
           return { peopleAhead, threshold: config.threshold, closed }
         }),
       PushLogs: ({ browserId, messages }) =>
-        Effect.gen(function* () {
-          for (const msg of messages) {
-            yield* browserId !== undefined
-              ? Effect.logInfo(`log from client [${browserId}]: ${msg}`)
-              : Effect.logInfo(`log from client: ${msg}`)
-          }
+        Effect.forEach(messages, (msg) => Effect.logInfo(`[${browserId}]`, msg), {
+          discard: true,
         }),
     })
   }),

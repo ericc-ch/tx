@@ -24,7 +24,7 @@ export const QueuePositionAck = Schema.Struct({
 })
 
 export const PushLogsPayload = Schema.Struct({
-  browserId: Schema.optional(Schema.String),
+  browserId: Schema.String,
   messages: Schema.Array(Schema.String),
 })
 
