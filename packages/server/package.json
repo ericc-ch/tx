@@ -34,7 +34,7 @@
   "scripts": {
     "build": "tsdown",
     "prepack": "pnpm run build",
-    "start": "node src/cli.ts",
+    "dev": "node src/cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

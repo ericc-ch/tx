@@ -38,27 +38,27 @@ Membership packages are also **sorted later** in the list (after loyalty-gated p
 
 ## General sale flow
 
-Everything happens on the **package card** on the packages page. No modal required.
+On mobile layout, booking uses the **bottom sheet** (`bottom-sheet-body`), not inline card expansion.
 
 ```mermaid
 flowchart TD
   A[Packages page loads] --> B[Scan package-card elements]
   B --> C[Click Pilih / Select on card footer]
-  C --> D[Card expands inline]
-  D --> E[ticket-qty-editor visible ON card]
+  C --> D[bottom-sheet-body visible]
+  D --> E[ticket-qty-editor inside sheet]
   E --> F[Set quantity]
-  F --> G[Click Pesan / Book on card]
+  F --> G[Click Pesan / Book in sheet footer]
   G --> H[Navigate to order page]
 ```
 
 **Current extension behavior** (`flow-packages.ts`):
 
 1. Find `[data-testid="package-card"]`
-2. Click **Pilih** in `[data-testid="package-card-footer"]`
-3. Wait for `input[type="number"]` and `[data-testid^="ticket-qty-editor-"]` on the **same card**
-4. Increment qty, click **Pesan** on the **same card**
+2. Click **Pilih / Select** in `[data-testid="package-card-footer"]`
+3. Wait for visible `[data-testid="bottom-sheet-body"]`
+4. Increment qty inside the sheet, click **Pesan / Book** in the sheet footer
 
-No whitelist API, no session storage gate, no hash popup.
+No whitelist API, no session storage gate for general sale.
 
 ---
 
@@ -172,20 +172,18 @@ If user closes the sheet before finishing, i18n offers a dialog (`whitelistCode.
 | Qty editor location  | On card               | Inside popup (after verify)                   |
 | Book button location | On card footer        | Popup sticky footer                           |
 | Pre-book gate        | None                  | API + sessionStorage                          |
-| Extension today      | Implemented           | **Not implemented**                           |
+| Extension today      | Implemented           | Implemented (verify gate in `flow-packages.ts`) |
 
 ---
 
 ## Autobuy implications
 
-For membership packages, `flow-packages.ts` must branch **before** assuming inline qty on the card:
+For membership packages, `flow-packages.ts` handles the same bottom sheet with an inline gate after open:
 
-1. Detect whitelist package (banner, or footer **Verifikasi kodemu**, or `#pricetierDetail` after click)
-2. Open / wait for **Detail Pesanan** sheet
-3. Fill membership code (from customer pool / `membershipCode` fixture field)
-4. Click **Verifikasi kodemu**, wait for success
-5. Set quantity inside the popup (`ticket-qty-editor-*`)
-6. Click **Pesan** in popup footer — not on the card
+1. Footer **Verifikasi kodemu** / **Verify code** (included in `OPEN_SHEET_BUTTON_TEXT`)
+2. Wait for **Detail Pesanan** / **Order Details** sheet (`bottom-sheet-body`)
+3. If **Verifikasi kodemu** / **Verify your code** is visible: fill code from `InitPayload.membershipPresaleCode`, click verify, wait for `ticket-qty-editor-*`
+4. Set quantity inside the sheet, click **Pesan** / **Book** in sheet footer
 
 See [tiket-packages-dom.md](./tiket-packages-dom.md) for selectors and DOM shape.
 

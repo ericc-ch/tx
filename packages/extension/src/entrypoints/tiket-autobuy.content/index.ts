@@ -1,3 +1,4 @@
+import { Config } from "@/lib/config"
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { Effect } from "effect"
@@ -17,6 +18,7 @@ const getBrowserState = (): BrowserState => {
 }
 
 const main = Effect.gen(function* () {
+  const config = yield* Config
   let flowStep: FlowStep = "routing"
 
   while (flowStep !== "done") {
@@ -30,7 +32,8 @@ const main = Effect.gen(function* () {
             yield* runOverview
             break
           case "packages": {
-            const result = yield* runPackages
+            const { membershipPresaleCode } = yield* config.get()
+            const result = yield* runPackages(membershipPresaleCode)
             if (result === "submitted") flowStep = "awaiting-order"
             break
           }

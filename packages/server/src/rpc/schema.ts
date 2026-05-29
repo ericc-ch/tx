@@ -6,6 +6,7 @@ export const INIT_PAYLOAD_PARAM = "__init"
 export const InitPayload = Schema.Struct({
   browserId: Schema.String,
   port: Schema.Number,
+  membershipPresaleCode: Schema.optional(Schema.String),
 })
 
 export const InitPayloadFromUrlParam = Schema.StringFromBase64Url.pipe(

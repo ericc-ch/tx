@@ -1,9 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "@effect/vitest"
-import { Effect } from "effect"
+import { Effect, Fiber } from "effect"
 import {
+  OPEN_SHEET_BUTTON_TEXT,
   ORDER_BUTTON_TEXT,
+  runPackages,
   SELECT_BUTTON_TEXT,
   SOLD_OUT_TEXT,
+  VERIFY_BUTTON_TEXT,
 } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
 import { runOverview } from "../src/entrypoints/tiket-autobuy.content/flow-overview"
 import { Page } from "../src/lib/playwlite"
@@ -41,7 +44,7 @@ const countAvailablePackages = () =>
       if ((yield* footer.getByText(SOLD_OUT_TEXT).count()) > 0) continue
       if (
         (yield* footer
-          .getByRole("button", { name: SELECT_BUTTON_TEXT, disabled: false })
+          .getByRole("button", { name: OPEN_SHEET_BUTTON_TEXT, disabled: false })
           .count()) === 0
       )
         continue
@@ -102,8 +105,89 @@ describe("package locale matchers", () => {
     expect(await Effect.runPromise(countAvailablePackages())).toBe(4)
   })
 
-  it("matches order button labels in both locales", () => {
+  it("finds presale package with verify code footer", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    makeVisible()
+
+    expect(await Effect.runPromise(countAvailablePackages())).toBe(1)
+  })
+
+  it("matches open sheet, verify, and order button labels", () => {
+    expect(SELECT_BUTTON_TEXT.test("Select")).toBe(true)
+    expect(OPEN_SHEET_BUTTON_TEXT.test("Verify code")).toBe(true)
+    expect(OPEN_SHEET_BUTTON_TEXT.test("Verify your code")).toBe(true)
+    expect(OPEN_SHEET_BUTTON_TEXT.test("Verifikasi kodemu")).toBe(true)
+    expect(OPEN_SHEET_BUTTON_TEXT.test("Pilih tiket")).toBe(true)
+    expect(VERIFY_BUTTON_TEXT.test("Verify your code")).toBe(true)
+    expect(VERIFY_BUTTON_TEXT.test("Verifikasi kodemu")).toBe(true)
     expect(ORDER_BUTTON_TEXT.test("Pesan")).toBe(true)
     expect(ORDER_BUTTON_TEXT.test("Book")).toBe(true)
+  })
+})
+
+describe("runPackages", () => {
+  beforeEach(resetDom)
+
+  it.each([
+    ["../../../fixtures/lany-packages-en.html"],
+    ["../../../fixtures/lany-packages-id.html"],
+  ])("submits order from bottom sheet in %s", async (fixturePath) => {
+    await Effect.runPromise(loadFixture(fixturePath).pipe(Effect.provide(NodePlatform)))
+    makeVisible()
+
+    const input = document.querySelector('[data-testid="bottom-sheet-body"] input[type="number"]')
+    if (!(input instanceof HTMLInputElement)) throw new Error("missing qty input")
+    input.value = "6"
+    input.removeAttribute("disabled")
+
+    expect(await Effect.runPromise(runPackages())).toBe("submitted")
+  })
+
+  it("submits order from post-verify presale sheet", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/whitelist-packages-ready-en.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    makeVisible()
+
+    const input = document.querySelector('[data-testid="bottom-sheet-body"] input[type="number"]')
+    if (!(input instanceof HTMLInputElement)) throw new Error("missing qty input")
+    input.value = "6"
+    input.removeAttribute("disabled")
+
+    expect(await Effect.runPromise(runPackages())).toBe("submitted")
+  })
+
+  it("fills presale code when verify step is shown", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    makeVisible()
+
+    const codeInput = document.querySelector('[data-testid="bottom-sheet-body"] input[type="text"]')
+    if (!(codeInput instanceof HTMLInputElement)) throw new Error("missing code input")
+
+    const fiber = await Effect.runFork(runPackages("WDYSLM"))
+    await Effect.runPromise(Effect.sleep("500 millis"))
+    expect(codeInput.value).toBe("WDYSLM")
+    await Effect.runPromise(Fiber.interrupt(fiber))
+  })
+
+  it("skips presale package when code is required but not configured", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    makeVisible()
+
+    expect(await Effect.runPromise(runPackages())).toBe("no-package")
   })
 })

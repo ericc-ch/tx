@@ -45,20 +45,25 @@ There is no dedicated `data-testid` for the banner; use visible text or structur
 
 ---
 
-## General sale: DOM after “Pilih”
+## General sale: DOM after “Pilih” / “Select”
 
-All targets stay **inside the same** `[data-testid="package-card"]`.
+On **mobile** (`packages_package_grouping_mobile__*`), the card only exposes **Pilih / Select** in the footer. Clicking it opens a bottom sheet; qty and **Pesan / Book** live in `[data-testid="bottom-sheet-body"]`, not on the card.
 
 ```
 [data-testid="package-card"]
 ├── h3                          → package title
-├── …                           → price, benefits (collapsed/expanded)
-├── [data-testid="ticket-qty-editor-{code}"]
-│   ├── input[type="number"]    → current qty
-│   └── button (×2)             → decrement, increment
+├── …                           → price, benefits
 └── [data-testid="package-card-footer"]
-    ├── button "Pilih"          → hidden or toggled after expand
-    └── button "Pesan"          → enabled when qty valid
+    └── button "Pilih" / "Select"
+
+[data-testid="bottom-sheet-body"]   → Order Details / Detail Pesanan
+├── h2                            → sheet title
+├── package title (selected tier)
+├── [data-testid="ticket-qty-editor-{code}"]
+│   ├── input[type="number"]
+│   └── button (×2)               → decrement, increment
+└── sticky footer
+    └── button "Pesan" / "Book"
 ```
 
 The `{code}` suffix is a package or price-tier code from API data — treat it as dynamic; use `[data-testid^="ticket-qty-editor-"]`.
@@ -68,10 +73,15 @@ The `{code}` suffix is a package or price-tier code from API data — treat it a
 ```ts
 page.getByTestId("package-card")
 card.getByTestId("package-card-footer")
-card.locator('input[type="number"]').filter({ visible: true })
-card.locator('[data-testid^="ticket-qty-editor-"]')
-card.getByRole("button", { name: /^(pesan|book)$/i })
+card.getByRole("button", { name: /^(pilih|select)$/i })
+
+const sheet = page.getByTestId("bottom-sheet-body").filter({ visible: true })
+sheet.locator('input[type="number"]').filter({ visible: true })
+sheet.locator('[data-testid^="ticket-qty-editor-"]')
+sheet.getByRole("button", { name: /^(pesan|book)$/i })
 ```
+
+Desktop may still expand qty inline on the card; autobuy targets the mobile bottom-sheet path.
 
 ---
 
@@ -214,12 +224,12 @@ Extension regexes already cover ID/EN for Pilih and Pesan. Add verify/select-tic
 
 ## DOM checklist for implementing membership autobuy
 
-- [ ] Detect whitelist package before assuming inline qty
-- [ ] Wait for visible sheet/dialog (title **Detail Pesanan** or hash change)
-- [ ] Locate code input (label, placeholder, or first text input in sheet)
-- [ ] Click verify, assert success text or footer change to **Pilih tiket**
-- [ ] Scope qty editor to sheet, not background card
-- [ ] Click **Pesan** in sheet footer only after footer exists
+- [x] Detect whitelist package before assuming inline qty
+- [x] Wait for visible sheet/dialog (title **Detail Pesanan** or hash change)
+- [x] Locate code input (first `input[type="text"]` in sheet)
+- [x] Click verify, wait for qty editor in sheet
+- [x] Scope qty editor to sheet, not background card
+- [x] Click **Pesan** in sheet footer only after footer exists
 - [ ] Handle API errors: not found, redeemed (visible error strings in i18n)
 - [ ] Re-verify selectors on a **live** page after each tiket deploy
 

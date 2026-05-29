@@ -21,11 +21,11 @@ We do **not** need a separate OS process tree per session unless crash isolation
 
 ## Isolation models
 
-| Model | Cookie isolation | Extension storage | Process overhead |
-| --- | --- | --- | --- |
-| **Tabs, same profile** | No | Shared | Lowest |
-| **Chrome profiles, one `--user-data-dir`** | Yes | Per profile | Low (shared browser/GPU/network) |
-| **Separate `--user-data-dir` per spawn (current)** | Yes | Per dir | High (full tree each time) |
+| Model                                              | Cookie isolation | Extension storage | Process overhead                 |
+| -------------------------------------------------- | ---------------- | ----------------- | -------------------------------- |
+| **Tabs, same profile**                             | No               | Shared            | Lowest                           |
+| **Chrome profiles, one `--user-data-dir`**         | Yes              | Per profile       | Low (shared browser/GPU/network) |
+| **Separate `--user-data-dir` per spawn (current)** | Yes              | Per dir           | High (full tree each time)       |
 
 ### Tabs are not enough
 
@@ -91,12 +91,12 @@ fish scripts/test-profiles.fish 20   # custom count
 
 Helium 0.12.4.1 (Chromium 148), Linux, no extensions:
 
-| N | Model | Helium processes | Browser processes | Total RSS | Per instance |
-| --- | --- | ---: | ---: | ---: | ---: |
-| 2 | Shared + profile | 12 | 3 | 989 MB | ~495 MB |
-| 2 | Separate user-data-dir | 24 | 6 | 1864 MB | ~932 MB |
-| 10 | Shared + profile | 12 | 3 | 1004 MB | **~100 MB** |
-| 10 | Separate user-data-dir | 120 | 30 | 9033 MB | **~903 MB** |
+| N   | Model                  | Helium processes | Browser processes | Total RSS | Per instance |
+| --- | ---------------------- | ---------------: | ----------------: | --------: | -----------: |
+| 2   | Shared + profile       |               12 |                 3 |    989 MB |      ~495 MB |
+| 2   | Separate user-data-dir |               24 |                 6 |   1864 MB |      ~932 MB |
+| 10  | Shared + profile       |               12 |                 3 |   1004 MB |  **~100 MB** |
+| 10  | Separate user-data-dir |              120 |                30 |   9033 MB |  **~903 MB** |
 
 At N=2, shared saves ~47% total RSS. At N=10, ~89% — separate dirs scale linearly with full browser trees; shared amortizes one browser/GPU/network stack.
 
@@ -104,10 +104,10 @@ At N=2, shared saves ~47% total RSS. At N=10, ~89% — separate dirs scale linea
 
 From per-instance RSS above (idle baseline only):
 
-| Model | N=2 extrapolation | N=10 extrapolation |
-| --- | ---: | ---: |
-| Shared + profile | ~44 | ~219 |
-| Separate user-data-dir | ~23 | ~24 |
+| Model                  | N=2 extrapolation | N=10 extrapolation |
+| ---------------------- | ----------------: | -----------------: |
+| Shared + profile       |               ~44 |               ~219 |
+| Separate user-data-dir |               ~23 |                ~24 |
 
 The N=10 per-instance numbers are more representative at target density. Expect fewer instances once tiket pages and the tx extension are loaded.
 
@@ -153,20 +153,20 @@ Skip flags that consolidate renderers, disable site isolation, merge GPU in-proc
 
 Same class as Playwright’s defaults: disable background services Chrome would run anyway, not used by headless-ish automation.
 
-| Flag | Purpose |
-| --- | --- |
-| `--disable-background-networking` | No background network tasks |
-| `--disable-sync` | No sync |
-| `--disable-breakpad` | No crash reporter |
-| `--disable-client-side-phishing-detection` | No phishing checks |
-| `--disable-domain-reliability` | No domain reliability uploads |
-| `--disable-component-extensions-with-background-pages` | No built-in component extension backgrounds |
-| `--disable-field-trial-config` | No A/B field trials |
-| `--metrics-recording-only` | Metrics without upload |
-| `--password-store=basic` | No keyring / wallet integration |
-| `--disable-ipc-flooding-protection` | Avoid IPC throttling under heavy automation |
-| `--mute-audio` | No audio buffers |
-| `--disable-extensions-except=$EXT` | Only tx extension (pair with `--load-extension`) |
+| Flag                                                   | Purpose                                          |
+| ------------------------------------------------------ | ------------------------------------------------ |
+| `--disable-background-networking`                      | No background network tasks                      |
+| `--disable-sync`                                       | No sync                                          |
+| `--disable-breakpad`                                   | No crash reporter                                |
+| `--disable-client-side-phishing-detection`             | No phishing checks                               |
+| `--disable-domain-reliability`                         | No domain reliability uploads                    |
+| `--disable-component-extensions-with-background-pages` | No built-in component extension backgrounds      |
+| `--disable-field-trial-config`                         | No A/B field trials                              |
+| `--metrics-recording-only`                             | Metrics without upload                           |
+| `--password-store=basic`                               | No keyring / wallet integration                  |
+| `--disable-ipc-flooding-protection`                    | Avoid IPC throttling under heavy automation      |
+| `--mute-audio`                                         | No audio buffers                                 |
+| `--disable-extensions-except=$EXT`                     | Only tx extension (pair with `--load-extension`) |
 
 Proposed stable set (existing + additions):
 
@@ -205,25 +205,25 @@ Extension loading stays per-spawn:
 
 ### Avoid — instability or bot-detection risk
 
-| Flag | Why skip |
-| --- | --- |
-| `--renderer-process-limit=1` | One renderer for all tabs/profiles; crash coupling |
-| `--disable-site-isolation-trials` | Weakens cross-origin isolation; iframe-heavy sites |
-| `--in-process-gpu` / `--disable-gpu` | Rendering/fingerprint changes |
-| `--single-process` | Unsupported, crashes take down everything |
-| `--aggressive-cache-discard` / tiny `--disk-cache-size` | Extra I/O, flaky load timing |
-| `--enable-low-end-device-mode` | Removed from Chromium |
-| `--no-zygote` | Needs `--no-sandbox` |
-| `--disable-extensions` | Breaks tx |
+| Flag                                                    | Why skip                                           |
+| ------------------------------------------------------- | -------------------------------------------------- |
+| `--renderer-process-limit=1`                            | One renderer for all tabs/profiles; crash coupling |
+| `--disable-site-isolation-trials`                       | Weakens cross-origin isolation; iframe-heavy sites |
+| `--in-process-gpu` / `--disable-gpu`                    | Rendering/fingerprint changes                      |
+| `--single-process`                                      | Unsupported, crashes take down everything          |
+| `--aggressive-cache-discard` / tiny `--disk-cache-size` | Extra I/O, flaky load timing                       |
+| `--enable-low-end-device-mode`                          | Removed from Chromium                              |
+| `--no-zygote`                                           | Needs `--no-sandbox`                               |
+| `--disable-extensions`                                  | Breaks tx                                          |
 
 ### Flags vs architecture (summary)
 
-| Lever | RAM impact | Stability |
-| --- | --- | --- |
-| Shared user-data-dir + profile-directory | Large | Same Chrome behavior per profile |
-| Stable housekeeping flags | Small | High (Playwright-proven) |
-| Anti-throttle trio (existing) | Costs RAM | **Keep** — automation reliability |
-| Aggressive process/GPU/isolation flags | Uncertain | **Avoid** |
+| Lever                                    | RAM impact | Stability                         |
+| ---------------------------------------- | ---------- | --------------------------------- |
+| Shared user-data-dir + profile-directory | Large      | Same Chrome behavior per profile  |
+| Stable housekeeping flags                | Small      | High (Playwright-proven)          |
+| Anti-throttle trio (existing)            | Costs RAM  | **Keep** — automation reliability |
+| Aggressive process/GPU/isolation flags   | Uncertain  | **Avoid**                         |
 
 **Recommendation:** multi-profile refactor first, then add the stable housekeeping list above. No renderer/GPU/site-isolation tuning unless measurement on real tiket flows proves it safe.
 
