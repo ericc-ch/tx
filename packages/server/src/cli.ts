@@ -8,9 +8,10 @@ import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 import { createServer } from "node:http"
 import packageJson from "../package.json" with { type: "json" }
-import { RpcHandlers, ServerConfig } from "./rpc/handlers.ts"
-import { ServerRpcs } from "./rpc/schema.ts"
+import { CustomerPool } from "./lib/customer-pool.ts"
 import { BrowserManager } from "./lib/browser.ts"
+import { RpcHandlers } from "./rpc/handlers.ts"
+import { ServerRpcs } from "./rpc/schema.ts"
 
 const Rpc = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol: "http" }).pipe(
   Layer.provide(RpcHandlers),
@@ -30,10 +31,12 @@ const tiketCommand = Command.make(
       Flag.withDescription("Number of browser instances to open"),
       Flag.withDefault(1),
     ),
-    threshold: Flag.integer("threshold").pipe(
-      Flag.withAlias("t"),
-      Flag.withDescription("Queue threshold to kill browser"),
-      Flag.withDefault(5000),
+    customerData: Flag.file("customer-data", { mustExist: true }).pipe(
+      Flag.withDescription("Path to customer data JSON file"),
+    ),
+    autobuyRetries: Flag.integer("autobuy-retries").pipe(
+      Flag.withDescription("Autobuy retry count per claimed customer"),
+      Flag.withDefault(3),
     ),
     browserPath: Flag.string("browser-path").pipe(
       Flag.withDescription("Path to browser executable"),
@@ -42,7 +45,7 @@ const tiketCommand = Command.make(
       Flag.withDescription("Path to built extension directory"),
     ),
   },
-  ({ count, threshold, url }) =>
+  ({ count, customerData, autobuyRetries, url }) =>
     Effect.gen(function* () {
       const runServerAndBrowser = Effect.gen(function* () {
         const server = yield* HttpServer.HttpServer
@@ -52,14 +55,16 @@ const tiketCommand = Command.make(
         const browser = yield* BrowserManager
         const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
         yield* Effect.all(
-          Array.from({ length: count }, () => browser.spawn({ url, port })),
+          Array.from({ length: count }, () =>
+            browser.spawn({ url, port, maxRetries: autobuyRetries }),
+          ),
           { concurrency: parallelism },
         )
         return yield* Effect.never
       }).pipe(
         Effect.provide(
           ServerMain.pipe(
-            Layer.provide(Layer.succeed(ServerConfig, ServerConfig.of({ threshold }))),
+            Layer.provide(CustomerPool.layer({ path: customerData })),
           ),
         ),
       )

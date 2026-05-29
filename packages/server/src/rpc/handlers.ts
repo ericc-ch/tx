@@ -1,36 +1,21 @@
-import { Context, Effect } from "effect"
+import { Effect } from "effect"
+import { CustomerPool } from "../lib/customer-pool.ts"
 import { ServerRpcs } from "./schema.ts"
-import { BrowserManager } from "../lib/browser.ts"
-
-export class ServerConfig extends Context.Service<
-  ServerConfig,
-  {
-    readonly threshold: number
-  }
->()("@tx/server/ServerConfig") {}
 
 export const RpcHandlers = ServerRpcs.toLayer(
   Effect.gen(function* () {
-    const browserManager = yield* BrowserManager
-    const config = yield* ServerConfig
+    const pool = yield* CustomerPool
 
     return ServerRpcs.of({
-      ReportQueuePosition: ({ peopleAhead, browserId }) =>
+      ClaimCustomer: ({ browserId }) =>
         Effect.gen(function* () {
-          yield* Effect.logInfo("Browser", browserId, "reported queue:", peopleAhead)
-          const closed = peopleAhead > config.threshold
-          if (closed) {
-            yield* Effect.logWarning(
-              "Closing browser",
-              browserId,
-              "because queue",
-              peopleAhead,
-              "exceeds threshold",
-              config.threshold,
-            )
-            yield* browserManager.kill(browserId)
+          const customer = yield* pool.claim()
+          if (!customer) {
+            yield* Effect.logInfo("Customer pool empty for browser", browserId)
+            return { empty: true as const }
           }
-          return { peopleAhead, threshold: config.threshold, closed }
+          yield* Effect.logInfo("Browser", browserId, "claimed customer", customer.email)
+          return { customer }
         }),
       PushLogs: ({ browserId, messages }) =>
         Effect.forEach(messages, (msg) => Effect.logInfo(`[${browserId}]`, msg), {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "@effect/vitest"
-import { Effect, Fiber } from "effect"
+import { CustomerStore } from "@/lib/customer"
+import { Effect, Fiber, Layer, Option } from "effect"
 import {
   OPEN_SHEET_BUTTON_TEXT,
   ORDER_BUTTON_TEXT,
@@ -11,6 +12,38 @@ import {
 import { runOverview } from "../src/entrypoints/tiket-autobuy.content/flow-overview"
 import { Page } from "../src/lib/playwlite"
 import { loadFixture, NodePlatform, resetDom } from "./util"
+
+const defaultCustomer = {
+  name: "Test User",
+  email: "test@example.com",
+  birthDate: "1/1/2000",
+  gender: "Female",
+  nik: "1234567890123456",
+  phone: "081234567890",
+  categories: ["cat 6", "last forever fan", "festival", "cat 1"],
+  ticketCount: 6,
+  day: "Day 1",
+  membershipCode: "WDYSLM",
+  paymentMethod: "BCA",
+}
+
+const customerStoreLayer = (customer = defaultCustomer) =>
+  Layer.succeed(
+    CustomerStore,
+    CustomerStore.of({
+      get: Effect.fn(function* () {
+        return yield* Effect.succeed(customer)
+      }),
+      getOption: Effect.fn(function* () {
+        return yield* Effect.succeed(Option.some(customer))
+      }),
+      set: Effect.fn(function* () {}),
+      clear: Effect.fn(function* () {}),
+    }),
+  )
+
+const runPackagesWithCustomer = (customer = defaultCustomer) =>
+  runPackages.pipe(Effect.provide(customerStoreLayer(customer)))
 
 const makeVisible = () => {
   for (const element of document.querySelectorAll("*")) {
@@ -144,7 +177,7 @@ describe("runPackages", () => {
     input.value = "6"
     input.removeAttribute("disabled")
 
-    expect(await Effect.runPromise(runPackages())).toBe("submitted")
+    expect(await Effect.runPromise(runPackagesWithCustomer())).toBe("submitted")
   })
 
   it("submits order from post-verify presale sheet", async () => {
@@ -160,7 +193,7 @@ describe("runPackages", () => {
     input.value = "6"
     input.removeAttribute("disabled")
 
-    expect(await Effect.runPromise(runPackages())).toBe("submitted")
+    expect(await Effect.runPromise(runPackagesWithCustomer())).toBe("submitted")
   })
 
   it("fills presale code when verify step is shown", async () => {
@@ -174,7 +207,7 @@ describe("runPackages", () => {
     const codeInput = document.querySelector('[data-testid="bottom-sheet-body"] input[type="text"]')
     if (!(codeInput instanceof HTMLInputElement)) throw new Error("missing code input")
 
-    const fiber = await Effect.runFork(runPackages("WDYSLM"))
+    const fiber = await Effect.runFork(runPackagesWithCustomer())
     await Effect.runPromise(Effect.sleep("500 millis"))
     expect(codeInput.value).toBe("WDYSLM")
     await Effect.runPromise(Fiber.interrupt(fiber))
@@ -188,6 +221,8 @@ describe("runPackages", () => {
     )
     makeVisible()
 
-    expect(await Effect.runPromise(runPackages())).toBe("no-package")
+    expect(
+      await Effect.runPromise(runPackagesWithCustomer({ ...defaultCustomer, membershipCode: "" })),
+    ).toBe("no-package")
   })
 })
