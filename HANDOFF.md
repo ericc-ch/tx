@@ -80,7 +80,7 @@ Watch the `--customer-data` file and merge new rows into the pool without restar
 ```typescript
 type PoolState = {
   available: Customer[]
-  claimedKeys: Set<string>  // dedup keys for rows already popped
+  claimedKeys: Set<string> // dedup keys for rows already popped
 }
 ```
 
@@ -240,14 +240,14 @@ Run `pnpm run check` when done.
 
 ## Failure modes (accepted)
 
-| Scenario | Outcome |
-|----------|---------|
-| Claim then browser crash | Row lost, unrecoverable |
-| Claim, autobuy fails X times | Row lost; browser claims next if pool has rows |
+| Scenario                     | Outcome                                                     |
+| ---------------------------- | ----------------------------------------------------------- |
+| Claim then browser crash     | Row lost, unrecoverable                                     |
+| Claim, autobuy fails X times | Row lost; browser claims next if pool has rows              |
 | Membership code already used | Indistinguishable from other errors; wasted after X retries |
-| Pool empty | Browser idles, polls; hot reload feeds new rows |
-| Two browsers race claim | Different rows (SynchronizedRef) |
-| Browser reload mid-autobuy | Resumes same customer from storage |
+| Pool empty                   | Browser idles, polls; hot reload feeds new rows             |
+| Two browsers race claim      | Different rows (SynchronizedRef)                            |
+| Browser reload mid-autobuy   | Resumes same customer from storage                          |
 
 ---
 

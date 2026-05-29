@@ -12,11 +12,7 @@ if (!inputPath) {
 }
 
 const outputFile =
-  outputPathArg ??
-  join(
-    dirname(inputPath),
-    `${basename(inputPath, extname(inputPath))}.json`,
-  )
+  outputPathArg ?? join(dirname(inputPath), `${basename(inputPath, extname(inputPath))}.json`)
 
 const csv = readFileSync(inputPath, "utf8")
 const result = Papa.parse<Record<string, string>>(csv, {
