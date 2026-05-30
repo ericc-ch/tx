@@ -1,7 +1,7 @@
 import { INIT_PAYLOAD_PARAM, InitPayload, InitPayloadFromUrlParam } from "@tx/server/schema"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import { browser } from "wxt/browser"
-import { storage } from "wxt/utils/storage"
+import { readItem, writeItem } from "./storage"
 
 const CONFIG_STORAGE_KEY = "local:config"
 
@@ -9,18 +9,10 @@ export class Config extends Context.Service<Config>()("tx/Config", {
   make: Effect.sync(() => {
     return {
       get: Effect.fn(function* () {
-        const value = yield* Effect.tryPromise(() => storage.getItem(CONFIG_STORAGE_KEY))
-        const stored = Option.fromNullishOr(value)
-        if (Option.isNone(stored)) {
-          return yield* Effect.die(new Error("Extension config not loaded"))
-        }
-
-        return yield* Schema.decodeUnknownEffect(InitPayload)(stored.value).pipe(Effect.orDie)
+        return yield* readItem(CONFIG_STORAGE_KEY, InitPayload, "Extension config not loaded")
       }),
       set: Effect.fn(function* (payload: typeof InitPayload.Type) {
-        yield* Effect.tryPromise(() => storage.setItem(CONFIG_STORAGE_KEY, payload)).pipe(
-          Effect.orDie,
-        )
+        yield* writeItem(CONFIG_STORAGE_KEY, payload)
       }),
     }
   }),
