@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer"
 import { Effect, Fiber, Layer, Option } from "effect"
+import { NoPackageAvailable } from "../src/entrypoints/tiket-autobuy.content/errors"
 import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
-import { runOverview } from "../src/entrypoints/tiket-autobuy.content/flow-overview"
+import { resetToOverview, runOverview } from "../src/entrypoints/tiket-autobuy.content/flow-overview"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
 const defaultCustomer = {
@@ -58,6 +59,31 @@ const makeVisible = () => {
 
 describe("tiket autobuy", () => {
   beforeEach(resetDom)
+
+  it("resets packages to overview preserving locale and query", async () => {
+    const locationState = {
+      pathname:
+        "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos/packages",
+      search: "?utm_page=toDoDetail",
+    }
+    const assign = vi.fn((url: string) => {
+      const parsed = new URL(url, "https://www.tiket.com")
+      locationState.pathname = parsed.pathname
+    })
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      get: () => ({
+        ...locationState,
+        assign,
+      }),
+    })
+
+    await Effect.runPromise(resetToOverview)
+
+    expect(assign).toHaveBeenCalledWith(
+      "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos?utm_page=toDoDetail",
+    )
+  })
 
   it("navigates overview to packages preserving locale and query", async () => {
     const assign = vi.fn()
@@ -133,8 +159,9 @@ describe("tiket autobuy", () => {
     )
     makeVisible()
 
-    expect(
-      await Effect.runPromise(runPackagesWithCustomer({ ...defaultCustomer, membershipCode: "" })),
-    ).toBe("no-package")
+    const error = await Effect.runPromise(
+      runPackagesWithCustomer({ ...defaultCustomer, membershipCode: "" }).pipe(Effect.flip),
+    )
+    expect(error).toBeInstanceOf(NoPackageAvailable)
   })
 })
