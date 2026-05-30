@@ -5,8 +5,6 @@ import { NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
   /^(pilih|select|pilih tiket|select ticket|verifikasi kodemu|verify(?: your)? code)$/i
-/** @deprecated Use OPEN_SHEET_BUTTON_TEXT */
-export const SELECT_BUTTON_TEXT = /^(pilih|select)$/i
 export const VERIFY_BUTTON_TEXT = /^(verifikasi kodemu|verify your code)$/i
 export const ORDER_BUTTON_TEXT = /^(pesan|book)$/i
 export const SOLD_OUT_TEXT = /^(terjual habis|sold out)$/i
