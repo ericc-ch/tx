@@ -8,8 +8,12 @@ Our priorities are:
 - Performance
 
 To improve readability, do not write one off logics as helper functions. Inline them. Once it needs to be reused, refactor it into a reusable function.
+
 If a tradeoff is required, choose correctness and robustness over short-term convenience.
+
 Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
+
+Minimize nesting.
 
 Use pnpm as package manager.
 Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx).

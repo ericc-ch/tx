@@ -25,13 +25,12 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
     yield* Effect.logInfo("Customer pool loaded", initial.length, "rows from", path)
 
     const reload = Effect.fn(function* () {
-      const result = yield* loadFile().pipe(Effect.result)
-      if (result._tag === "Failure") {
-        yield* Effect.logError("Failed to reload customer data", result.failure)
-        return
-      }
-
-      const rows = result.success
+      const rows = yield* loadFile().pipe(
+        Effect.catch((cause) =>
+          Effect.logError("Failed to reload customer data", cause).pipe(Effect.as(null)),
+        ),
+      )
+      if (!rows) return
 
       const added = yield* SynchronizedRef.modify(ref, (state) => {
         const availableKeys = new Set(state.available.map(customerKey))
