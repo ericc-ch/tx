@@ -1,4 +1,13 @@
-import { Context, Duration, Effect, FileSystem, Layer, Schema, Stream, SynchronizedRef } from "effect"
+import {
+  Context,
+  Duration,
+  Effect,
+  FileSystem,
+  Layer,
+  Schema,
+  Stream,
+  SynchronizedRef,
+} from "effect"
 import { Customer, CustomerDataFile, customerKey, decodeCustomerRow } from "../rpc/schema.ts"
 
 type PoolState = {
@@ -30,7 +39,10 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
           Effect.logError("Failed to reload customer data", cause).pipe(Effect.as(null)),
         ),
       )
-      if (!rows) return
+      if (!rows) {
+        yield* Effect.logWarning("No new customer data loaded")
+        return
+      }
 
       const added = yield* SynchronizedRef.modify(ref, (state) => {
         const availableKeys = new Set(state.available.map(customerKey))
@@ -48,6 +60,7 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
       })
 
       if (added > 0) yield* Effect.logInfo("Customer pool reload added", added, "rows")
+      else yield* Effect.logWarning("No new customer data loaded")
     })
 
     yield* Effect.forkScoped(
