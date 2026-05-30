@@ -8,19 +8,11 @@ import { RpcClient } from "effect/unstable/rpc"
 import { runOrder } from "./flow-order"
 import { resetToOverview, runOverview } from "./flow-overview"
 import { runPackages } from "./flow-packages"
+import { pageKind } from "./url"
 
 const maxAutobuyAttempts = 3
 
-type BrowserState = "overview" | "packages" | "order" | "unknown"
 type FlowStep = "routing" | "awaiting-order" | "done"
-
-const getBrowserState = (): BrowserState => {
-  const { pathname } = location
-  if (pathname.endsWith("/order")) return "order"
-  if (pathname.endsWith("/packages")) return "packages"
-  if (pathname.includes("/to-do/")) return "overview"
-  return "unknown"
-}
 
 const acquireCustomer = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -52,7 +44,7 @@ const runAutobuyFlow = Effect.gen(function* () {
   let flowStep: FlowStep = "routing"
 
   while (flowStep !== "done") {
-    const browserState = getBrowserState()
+    const browserState = pageKind(location.pathname)
     yield* Effect.logDebug("Autobuy step", "browserState:", browserState, "flowStep:", flowStep)
 
     switch (flowStep) {
