@@ -44,15 +44,7 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       )
     }
 
-    const spawn = Effect.fn(function* ({
-      url,
-      port,
-      maxRetries,
-    }: {
-      url: string
-      port: number
-      maxRetries: number
-    }) {
+    const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
       const browserId = yield* Effect.sync(() => {
         const adjective = pickWord(words.adjectives)
         const noun = pickWord(words.nouns)
@@ -61,7 +53,7 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
       const dir = yield* fs.makeTempDirectory({ prefix: browserId })
       yield* Effect.logInfo(`Profile created for ${browserId} at`, dir)
 
-      const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({ browserId, port, maxRetries })
+      const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({ browserId, port })
 
       const urlWithInit = new URL(url)
       urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)

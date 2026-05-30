@@ -34,10 +34,6 @@ const tiketCommand = Command.make(
     customerData: Flag.file("customer-data", { mustExist: true }).pipe(
       Flag.withDescription("Path to customer data JSON file"),
     ),
-    autobuyRetries: Flag.integer("autobuy-retries").pipe(
-      Flag.withDescription("Autobuy retry count per claimed customer"),
-      Flag.withDefault(3),
-    ),
     browserPath: Flag.string("browser-path").pipe(
       Flag.withDescription("Path to browser executable"),
     ),
@@ -45,7 +41,7 @@ const tiketCommand = Command.make(
       Flag.withDescription("Path to built extension directory"),
     ),
   },
-  ({ count, customerData, autobuyRetries, url }) =>
+  ({ count, customerData, url }) =>
     Effect.gen(function* () {
       const runServerAndBrowser = Effect.gen(function* () {
         const server = yield* HttpServer.HttpServer
@@ -56,7 +52,7 @@ const tiketCommand = Command.make(
         const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
         yield* Effect.all(
           Array.from({ length: count }, () =>
-            browser.spawn({ url, port, maxRetries: autobuyRetries }),
+            browser.spawn({ url, port }),
           ),
           { concurrency: parallelism },
         )
