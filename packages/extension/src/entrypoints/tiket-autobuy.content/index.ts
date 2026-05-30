@@ -6,8 +6,10 @@ import { ServerRpcs } from "@tx/server/schema"
 import { Duration, Effect, Layer, Option } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
 import { runOrder } from "./flow-order"
-import { runOverview } from "./flow-overview"
+import { resetToOverview, runOverview } from "./flow-overview"
 import { runPackages } from "./flow-packages"
+
+const maxAutobuyAttempts = 3
 
 type BrowserState = "overview" | "packages" | "order" | "unknown"
 type FlowStep = "routing" | "awaiting-order" | "done"
@@ -62,7 +64,6 @@ const runAutobuyFlow = Effect.gen(function* () {
           case "packages": {
             const result = yield* runPackages
             if (result === "submitted") flowStep = "awaiting-order"
-            else if (result === "no-package") return yield* Effect.fail("no-package")
             break
           }
           case "order": {
@@ -91,39 +92,40 @@ const runAutobuyFlow = Effect.gen(function* () {
   }
 })
 
-const runAutobuyWithRetries = (maxRetries: number) =>
-  Effect.gen(function* () {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const result = yield* runAutobuyFlow.pipe(
-        Effect.matchEffect({
-          onFailure: (cause) =>
-            Effect.gen(function* () {
-              yield* Effect.logWarning("Autobuy attempt", attempt, "failed:", cause)
-              return "retry" as const
-            }),
-          onSuccess: () => Effect.succeed("success" as const),
-        }),
-      )
-      if (result === "success") return "success" as const
-    }
-    return "exhausted" as const
-  })
+const runAutobuyWithRetries = runAutobuyFlow.pipe(
+  Effect.tapError((error) =>
+    Effect.gen(function* () {
+      yield* Effect.logWarning("Autobuy attempt failed:", error)
+      yield* resetToOverview
+    }),
+  ),
+  Effect.retry({ times: maxAutobuyAttempts - 1 }),
+)
 
 const main = Effect.gen(function* () {
-  const config = yield* Config
   const store = yield* CustomerStore
-  const { maxRetries } = yield* config.get()
 
   while (true) {
     yield* acquireCustomer
-    const result = yield* runAutobuyWithRetries(maxRetries)
-    if (result === "success") {
+    const purchased = yield* runAutobuyWithRetries.pipe(
+      Effect.as(true),
+      Effect.catch((cause) =>
+        Effect.gen(function* () {
+          yield* store.clear()
+          yield* Effect.logWarning(
+            "Customer wasted after",
+            maxAutobuyAttempts,
+            "failed attempts:",
+            cause,
+          )
+          return false
+        }),
+      ),
+    )
+    if (purchased) {
       yield* Effect.logInfo("Purchase successful")
       return
     }
-
-    yield* store.clear()
-    yield* Effect.logWarning("Customer wasted after", maxRetries, "failed attempts")
   }
 }).pipe(Effect.scoped)
 
