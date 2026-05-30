@@ -5,58 +5,55 @@ import { CustomerPool } from "../src/lib/customer-pool.ts"
 
 const NodePlatform = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)
 
-const sampleRows = [
+const sampleCustomers = [
   {
-    Timestamp: "5/23/2026 12:20:33",
-    "Nama Lengkap": "Tono Tenda",
-    Email: "tonotenda@example.com",
-    "Tanggal Lahir": "7/13/2003",
-    Gender: "Female",
-    "NIK/KTP": "3122022302230022",
-    "Nomor Telepon (contoh: 81234567890)": "082259225223",
-    "Kategori Ticket": "cat 1, festival",
-    "Jumlah Ticket": "1",
-    "Day (contoh: day 1)": "Day 1",
-    "Kode Membership (Presale Only)": "BA203480222",
-    "Metode Pembayaran": "BCA",
+    name: "Tono Tenda",
+    email: "tonotenda@example.com",
+    birthDate: "7/13/2003",
+    gender: "Female",
+    nik: "3122022302230022",
+    phone: "082259225223",
+    categories: ["cat 1", "festival"],
+    ticketCount: 1,
+    day: "Day 1",
+    membershipCode: "BA203480222",
+    paymentMethod: "BCA",
   },
   {
-    Timestamp: "5/23/2026 16:08:07",
-    "Nama Lengkap": "Tronton Tuntu",
-    Email: "tronton@gmail.com",
-    "Tanggal Lahir": "1/4/2001",
-    Gender: "Female",
-    "NIK/KTP": "3207042201110044",
-    "Nomor Telepon (contoh: 81234567890)": "085122005833",
-    "Kategori Ticket": "festival",
-    "Jumlah Ticket": "2",
-    "Day (contoh: day 1)": "Day 1",
-    "Kode Membership (Presale Only)": "BA767815122",
-    "Metode Pembayaran": "VA MANDIRI",
+    name: "Tronton Tuntu",
+    email: "tronton@gmail.com",
+    birthDate: "1/4/2001",
+    gender: "Female",
+    nik: "3207042201110044",
+    phone: "085122005833",
+    categories: ["festival"],
+    ticketCount: 2,
+    day: "Day 1",
+    membershipCode: "BA767815122",
+    paymentMethod: "VA MANDIRI",
   },
   {
-    Timestamp: "5/23/2026 17:00:00",
-    "Nama Lengkap": "Third Person",
-    Email: "third@example.com",
-    "Tanggal Lahir": "1/1/2000",
-    Gender: "Male",
-    "NIK/KTP": "1111111111111111",
-    "Nomor Telepon (contoh: 81234567890)": "081111111111",
-    "Kategori Ticket": "cat 6",
-    "Jumlah Ticket": "3",
-    "Day (contoh: day 1)": "Day 1",
-    "Kode Membership (Presale Only)": "CODE3",
-    "Metode Pembayaran": "BCA",
+    name: "Third Person",
+    email: "third@example.com",
+    birthDate: "1/1/2000",
+    gender: "Male",
+    nik: "1111111111111111",
+    phone: "081111111111",
+    categories: ["cat 6"],
+    ticketCount: 3,
+    day: "Day 1",
+    membershipCode: "CODE3",
+    paymentMethod: "BCA",
   },
 ]
 
-const withPool = (rows: ReadonlyArray<(typeof sampleRows)[number]>) =>
+const withPool = (customers: ReadonlyArray<(typeof sampleCustomers)[number]>) =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
     const dir = yield* fs.makeTempDirectory({ prefix: "customer-pool-" })
     const file = path.join(dir, "customers.json")
-    yield* fs.writeFileString(file, `${JSON.stringify(rows, null, 2)}\n`)
+    yield* fs.writeFileString(file, `${JSON.stringify(customers, null, 2)}\n`)
 
     return yield* Effect.gen(function* () {
       const pool = yield* CustomerPool
@@ -67,7 +64,7 @@ const withPool = (rows: ReadonlyArray<(typeof sampleRows)[number]>) =>
 describe("CustomerPool", () => {
   it("claims rows in order without duplicates", () =>
     Effect.gen(function* () {
-      const { pool } = yield* withPool(sampleRows.slice(0, 2))
+      const { pool } = yield* withPool(sampleCustomers.slice(0, 2))
 
       const first = yield* pool.claim()
       const second = yield* pool.claim()
@@ -80,7 +77,7 @@ describe("CustomerPool", () => {
 
   it("serializes concurrent claims", () =>
     Effect.gen(function* () {
-      const { pool } = yield* withPool(sampleRows)
+      const { pool } = yield* withPool(sampleCustomers)
 
       const claimed = yield* Effect.all(Array.from({ length: 10 }, () => pool.claim()), {
         concurrency: 10,
@@ -93,12 +90,12 @@ describe("CustomerPool", () => {
 
   it("reload appends new rows and ignores claimed keys", () =>
     Effect.gen(function* () {
-      const { pool, file, fs } = yield* withPool(sampleRows.slice(0, 2))
+      const { pool, file, fs } = yield* withPool(sampleCustomers.slice(0, 2))
 
       const first = yield* pool.claim()
       expect(first?.email).toBe("tonotenda@example.com")
 
-      yield* fs.writeFileString(file, `${JSON.stringify(sampleRows, null, 2)}\n`)
+      yield* fs.writeFileString(file, `${JSON.stringify(sampleCustomers, null, 2)}\n`)
       yield* Effect.sleep("500 millis")
 
       const reloaded = yield* pool.claim()
@@ -110,9 +107,9 @@ describe("CustomerPool", () => {
 
   it("deduplicates rows already in the available pool on reload", () =>
     Effect.gen(function* () {
-      const { pool, file, fs } = yield* withPool(sampleRows.slice(0, 2))
+      const { pool, file, fs } = yield* withPool(sampleCustomers.slice(0, 2))
 
-      yield* fs.writeFileString(file, `${JSON.stringify(sampleRows.slice(0, 2), null, 2)}\n`)
+      yield* fs.writeFileString(file, `${JSON.stringify(sampleCustomers.slice(0, 2), null, 2)}\n`)
       yield* Effect.sleep("500 millis")
 
       const first = yield* pool.claim()

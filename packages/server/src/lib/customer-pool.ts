@@ -8,10 +8,10 @@ import {
   Stream,
   SynchronizedRef,
 } from "effect"
-import { Customer, CustomerDataFile, customerKey, decodeCustomerRow } from "../rpc/schema.ts"
+import { Customer, CustomerDataFile, customerKey } from "../rpc/schema.ts"
 
 type PoolState = {
-  available: Array<typeof Customer.Type>
+  available: ReadonlyArray<typeof Customer.Type>
   claimedKeys: Set<string>
 }
 
@@ -25,8 +25,7 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
 
     const loadFile = Effect.fn(function* () {
       const content = yield* fs.readFileString(path)
-      const rows = yield* Schema.decodeUnknownEffect(CustomerDataFile)(content)
-      return rows.map(decodeCustomerRow)
+      return yield* Schema.decodeUnknownEffect(CustomerDataFile)(content)
     })
 
     const initial = yield* loadFile()

@@ -14,6 +14,26 @@ if (!inputPath) {
 const outputFile =
   outputPathArg ?? join(dirname(inputPath), `${basename(inputPath, extname(inputPath))}.json`)
 
+const parseCategories = (raw: string) =>
+  raw
+    .split(",")
+    .map((part) => part.trim().toLowerCase())
+    .filter(Boolean)
+
+const decodeRow = (row: Record<string, string>) => ({
+  name: row["Nama Lengkap"].trim(),
+  email: row.Email.trim(),
+  birthDate: row["Tanggal Lahir"].trim(),
+  gender: row.Gender.trim(),
+  nik: row["NIK/KTP"].trim(),
+  phone: row["Nomor Telepon (contoh: 81234567890)"].trim(),
+  categories: parseCategories(row["Kategori Ticket"]),
+  ticketCount: Number.parseInt(row["Jumlah Ticket"].trim(), 10),
+  day: row["Day (contoh: day 1)"].trim(),
+  membershipCode: row["Kode Membership (Presale Only)"].trim(),
+  paymentMethod: row["Metode Pembayaran"].trim(),
+})
+
 const csv = readFileSync(inputPath, "utf8")
 const result = Papa.parse<Record<string, string>>(csv, {
   header: true,
@@ -27,5 +47,6 @@ if (result.errors.length > 0) {
   process.exit(1)
 }
 
-writeFileSync(outputFile, `${JSON.stringify(result.data, null, 2)}\n`)
-console.log(`Wrote ${result.data.length} rows to ${outputFile}`)
+const customers = result.data.map(decodeRow)
+writeFileSync(outputFile, `${JSON.stringify(customers, null, 2)}\n`)
+console.log(`Wrote ${customers.length} customers to ${outputFile}`)
