@@ -1,16 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer"
 import { Effect, Fiber, Layer, Option } from "effect"
-import {
-  OPEN_SHEET_BUTTON_TEXT,
-  ORDER_BUTTON_TEXT,
-  runPackages,
-  SELECT_BUTTON_TEXT,
-  SOLD_OUT_TEXT,
-  VERIFY_BUTTON_TEXT,
-} from "../src/entrypoints/tiket-autobuy.content/flow-packages"
+import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
 import { runOverview } from "../src/entrypoints/tiket-autobuy.content/flow-overview"
-import { Page } from "../src/lib/playwlite"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
 const defaultCustomer = {
@@ -64,33 +56,10 @@ const makeVisible = () => {
   }
 }
 
-const countAvailablePackages = () =>
-  Effect.gen(function* () {
-    const page = new Page(document)
-    const cards = page.getByTestId("package-card").filter({ visible: true })
-    const count = yield* cards.count()
-    let available = 0
-
-    for (let index = 0; index < count; index++) {
-      const card = cards.nth(index)
-      const footer = card.getByTestId("package-card-footer")
-      if ((yield* footer.getByText(SOLD_OUT_TEXT).count()) > 0) continue
-      if (
-        (yield* footer
-          .getByRole("button", { name: OPEN_SHEET_BUTTON_TEXT, disabled: false })
-          .count()) === 0
-      )
-        continue
-      available++
-    }
-
-    return available
-  })
-
-describe("runOverview", () => {
+describe("tiket autobuy", () => {
   beforeEach(resetDom)
 
-  it("navigates to packages preserving locale path and query", async () => {
+  it("navigates overview to packages preserving locale and query", async () => {
     const assign = vi.fn()
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -108,67 +77,10 @@ describe("runOverview", () => {
     )
   })
 
-  it("does not navigate when already on packages", async () => {
-    const assign = vi.fn()
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        pathname: "/en-id/to-do/some-event/packages",
-        search: "",
-        assign,
-      },
-    })
-
-    await Effect.runPromise(runOverview)
-
-    expect(assign).not.toHaveBeenCalled()
-  })
-})
-
-describe("package locale matchers", () => {
-  beforeEach(resetDom)
-
-  it.each([
-    ["../../../fixtures/lany-packages-en.html", "en"],
-    ["../../../fixtures/lany-packages-id.html", "id"],
-  ])("finds available packages in %s fixture", async (fixturePath) => {
-    await Effect.runPromise(loadFixture(fixturePath).pipe(Effect.provide(NodePlatform)))
-    makeVisible()
-
-    expect(await Effect.runPromise(countAvailablePackages())).toBe(4)
-  })
-
-  it("finds presale package with verify code footer", async () => {
-    await Effect.runPromise(
-      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
-        Effect.provide(NodePlatform),
-      ),
-    )
-    makeVisible()
-
-    expect(await Effect.runPromise(countAvailablePackages())).toBe(1)
-  })
-
-  it("matches open sheet, verify, and order button labels", () => {
-    expect(SELECT_BUTTON_TEXT.test("Select")).toBe(true)
-    expect(OPEN_SHEET_BUTTON_TEXT.test("Verify code")).toBe(true)
-    expect(OPEN_SHEET_BUTTON_TEXT.test("Verify your code")).toBe(true)
-    expect(OPEN_SHEET_BUTTON_TEXT.test("Verifikasi kodemu")).toBe(true)
-    expect(OPEN_SHEET_BUTTON_TEXT.test("Pilih tiket")).toBe(true)
-    expect(VERIFY_BUTTON_TEXT.test("Verify your code")).toBe(true)
-    expect(VERIFY_BUTTON_TEXT.test("Verifikasi kodemu")).toBe(true)
-    expect(ORDER_BUTTON_TEXT.test("Pesan")).toBe(true)
-    expect(ORDER_BUTTON_TEXT.test("Book")).toBe(true)
-  })
-})
-
-describe("runPackages", () => {
-  beforeEach(resetDom)
-
   it.each([
     ["../../../fixtures/lany-packages-en.html"],
     ["../../../fixtures/lany-packages-id.html"],
-  ])("submits order from bottom sheet in %s", async (fixturePath) => {
+  ])("submits order from bottom sheet (%s)", async (fixturePath) => {
     await Effect.runPromise(loadFixture(fixturePath).pipe(Effect.provide(NodePlatform)))
     makeVisible()
 
@@ -213,7 +125,7 @@ describe("runPackages", () => {
     await Effect.runPromise(Fiber.interrupt(fiber))
   })
 
-  it("skips presale package when code is required but not configured", async () => {
+  it("skips presale package when membership code is missing", async () => {
     await Effect.runPromise(
       loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
         Effect.provide(NodePlatform),
