@@ -1,6 +1,7 @@
 import { CustomerStore } from "@/lib/customer"
 import { Locator, Page } from "@/lib/playwlite"
 import { Duration, Effect } from "effect"
+import { NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
   /^(pilih|select|pilih tiket|select ticket|verifikasi kodemu|verify(?: your)? code)$/i
@@ -44,7 +45,7 @@ export const runPackages = Effect.gen(function* () {
 
   if (available.length === 0) {
     yield* Effect.logDebug("No packages available")
-    return "no-package" as const
+    return yield* new NoPackageAvailable()
   }
 
   yield* Effect.logInfo(
@@ -147,5 +148,5 @@ export const runPackages = Effect.gen(function* () {
   }
 
   yield* Effect.logDebug("No priority package available, exiting")
-  return "no-package" as const
+  return yield* new NoPackageAvailable()
 })
