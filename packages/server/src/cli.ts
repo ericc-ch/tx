@@ -1,29 +1,20 @@
 #!/usr/bin/env node
 
-import { NodeHttpServer, NodeRuntime, NodeServices } from "@effect/platform-node"
-import { Effect, Layer } from "effect"
+import { NodeRuntime, NodeServices } from "@effect/platform-node"
+import { Effect, FileSystem, Path } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { HttpServer } from "effect/unstable/http"
 import os from "node:os"
-import { HttpRouter, HttpServer } from "effect/unstable/http"
-import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
-import { createServer } from "node:http"
 import packageJson from "../package.json" with { type: "json" }
-import { CustomerPool } from "./lib/customer-pool.ts"
-import { BrowserLauncher } from "./lib/browser-launcher.ts"
-import { RpcHandlers } from "./rpc/handlers.ts"
-import { ServerRpcs } from "./rpc/schema.ts"
+import { BrowserLauncher, browserSwitches } from "./lib/browser-launcher.ts"
+import { TxConfig } from "./lib/config.ts"
+import { TiketLive } from "./layers.ts"
 
-const Rpc = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol: "http" }).pipe(
-  Layer.provide(RpcHandlers),
-  Layer.provideMerge(RpcSerialization.layerNdjson),
-)
+const templateProfileDirectory = "template-draft"
 
-const ServerMain = HttpRouter.serve(Rpc).pipe(
-  Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port: 0 })),
-)
-
-const tiketCommand = Command.make(
-  "tiket",
+const tiketStartCommand = Command.make(
+  "start",
   {
     url: Argument.string("url"),
     count: Flag.integer("browser-count").pipe(
@@ -31,61 +22,93 @@ const tiketCommand = Command.make(
       Flag.withDescription("Number of browser instances to open"),
       Flag.withDefault(1),
     ),
-    customerData: Flag.file("customer-data", { mustExist: true }).pipe(
-      Flag.withDescription("Path to customer data JSON file"),
-    ),
-    browserPath: Flag.string("browser-path").pipe(
-      Flag.withDescription("Path to browser executable"),
-    ),
-    extensionPath: Flag.string("extension-path").pipe(
-      Flag.withDescription("Path to built extension directory"),
-    ),
   },
-  ({ count, customerData, url }) =>
-    Effect.gen(function* () {
-      const runServerAndBrowser = Effect.gen(function* () {
-        const server = yield* HttpServer.HttpServer
-        const port = server.address._tag === "TcpAddress" ? server.address.port : 0
-        yield* Effect.logInfo("Server is listening on port", port)
+  Effect.fn(
+    function* ({ count, url }) {
+      const server = yield* HttpServer.HttpServer
+      const { port } = server.address as HttpServer.TcpAddress
+      yield* Effect.logInfo("Server is listening on port", port)
 
-        const browser = yield* BrowserLauncher
-        const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
-        yield* Effect.all(
-          Array.from({ length: count }, () =>
-            browser.spawn({ url, port }),
-          ),
-          { concurrency: parallelism },
-        )
-        return yield* Effect.never
-      }).pipe(
-        Effect.provide(
-          ServerMain.pipe(
-            Layer.provide(CustomerPool.layer({ path: customerData })),
-          ),
+      const browser = yield* BrowserLauncher
+      const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
+      yield* Effect.all(
+        Array.from({ length: count }, () => browser.spawn({ url, port })),
+        { concurrency: parallelism },
+      )
+      return yield* Effect.never
+    },
+    Effect.provide(TiketLive),
+    Effect.scoped,
+  ),
+).pipe(Command.withDescription("Start tiket server and spawn browsers"))
+
+const templateCreateCommand = Command.make(
+  "create",
+  {},
+  Effect.fn(
+    function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+      const { config, paths } = yield* TxConfig
+      const { userDataDir, templateDir } = paths
+      const profilePath = path.join(userDataDir, templateProfileDirectory)
+
+      if (yield* fs.exists(profilePath)) {
+        yield* fs.remove(profilePath, { recursive: true, force: true })
+      }
+
+      yield* Effect.acquireUseRelease(
+        spawner.spawn(
+          ChildProcess.make(config.browserExecutable, [
+            `--user-data-dir=${userDataDir}`,
+            `--profile-directory=${templateProfileDirectory}`,
+            ...browserSwitches,
+          ]),
+        ),
+        Effect.fn(function* (handle) {
+          yield* Effect.logInfo("Log in, then close the browser when done")
+          yield* handle.exitCode
+        }),
+        Effect.fn(
+          function* () {
+            if (!(yield* fs.exists(profilePath))) {
+              yield* Effect.logWarning("No profile to save at", profilePath)
+              return
+            }
+
+            if (yield* fs.exists(templateDir)) {
+              yield* Effect.logInfo("Replacing existing template at", templateDir)
+              yield* fs.remove(templateDir, { recursive: true, force: true })
+            }
+
+            yield* fs.rename(profilePath, templateDir)
+            yield* Effect.logInfo("Template saved at", templateDir)
+          },
+          Effect.orDie,
         ),
       )
-
-      return yield* runServerAndBrowser
-    }).pipe(Effect.scoped),
-).pipe(
-  Command.withDescription("Start tiket server and spawn browser"),
-  Command.provide(({ browserPath, extensionPath }) =>
-    BrowserLauncher.layer({ browserPath, extensionPath }),
+    },
+    Effect.provide(TxConfig.layer),
+    Effect.scoped,
   ),
+).pipe(Command.withDescription("Create a template profile by logging in once"))
+
+const templateCommand = Command.make("template").pipe(
+  Command.withDescription("Manage the browser profile template"),
+  Command.withSubcommands([templateCreateCommand]),
 )
 
-const startCommand = Command.make("start").pipe(
-  Command.withDescription("Start commands"),
-  Command.withSubcommands([tiketCommand]),
+const tiketCommand = Command.make("tiket").pipe(
+  Command.withDescription("Tiket automation"),
+  Command.withSubcommands([tiketStartCommand, templateCommand]),
 )
 
 const command = Command.make("tx", {}).pipe(
   Command.withDescription("tx server"),
-  Command.withSubcommands([startCommand]),
+  Command.withSubcommands([tiketCommand]),
 )
 
 const cli = Command.run(command, { version: packageJson.version })
 
-const MainLayer = Layer.empty.pipe(Layer.provideMerge(NodeServices.layer))
-
-NodeRuntime.runMain(cli.pipe(Effect.provide(MainLayer)))
+NodeRuntime.runMain(cli.pipe(Effect.provide(NodeServices.layer)))
