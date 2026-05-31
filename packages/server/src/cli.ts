@@ -9,7 +9,7 @@ import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 import { createServer } from "node:http"
 import packageJson from "../package.json" with { type: "json" }
 import { CustomerPool } from "./lib/customer-pool.ts"
-import { BrowserManager } from "./lib/browser.ts"
+import { BrowserLauncher } from "./lib/browser-launcher.ts"
 import { RpcHandlers } from "./rpc/handlers.ts"
 import { ServerRpcs } from "./rpc/schema.ts"
 
@@ -48,7 +48,7 @@ const tiketCommand = Command.make(
         const port = server.address._tag === "TcpAddress" ? server.address.port : 0
         yield* Effect.logInfo("Server is listening on port", port)
 
-        const browser = yield* BrowserManager
+        const browser = yield* BrowserLauncher
         const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
         yield* Effect.all(
           Array.from({ length: count }, () =>
@@ -70,7 +70,7 @@ const tiketCommand = Command.make(
 ).pipe(
   Command.withDescription("Start tiket server and spawn browser"),
   Command.provide(({ browserPath, extensionPath }) =>
-    BrowserManager.layer({ browserPath, extensionPath }),
+    BrowserLauncher.layer({ browserPath, extensionPath }),
   ),
 )
 

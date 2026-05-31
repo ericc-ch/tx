@@ -8,7 +8,7 @@ interface BrowserEntry {
   profilePath: string
 }
 
-interface BrowserManagerOptions {
+interface BrowserLauncherOptions {
   browserPath: string
   extensionPath: string
 }
@@ -28,8 +28,8 @@ const browserSwitches = [
   "--disable-component-update",
 ]
 
-export class BrowserManager extends Context.Service<BrowserManager>()("BrowserManager", {
-  make: Effect.fn(function* ({ browserPath, extensionPath }: BrowserManagerOptions) {
+export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/server/BrowserLauncher", {
+  make: Effect.fn(function* ({ browserPath, extensionPath }: BrowserLauncherOptions) {
     const fs = yield* FileSystem.FileSystem
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const browsers = new Map<string, BrowserEntry>()
@@ -114,5 +114,5 @@ export class BrowserManager extends Context.Service<BrowserManager>()("BrowserMa
     return { spawn, kill }
   }),
 }) {
-  static layer = (options: BrowserManagerOptions) => Layer.effect(this, this.make(options))
+  static layer = (options: BrowserLauncherOptions) => Layer.effect(this, this.make(options))
 }
