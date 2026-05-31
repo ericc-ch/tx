@@ -70,23 +70,20 @@ const templateCreateCommand = Command.make(
           yield* Effect.logInfo("Log in, then close the browser when done")
           yield* handle.exitCode
         }),
-        Effect.fn(
-          function* () {
-            if (!(yield* fs.exists(profilePath))) {
-              yield* Effect.logWarning("No profile to save at", profilePath)
-              return
-            }
+        Effect.fn(function* () {
+          if (!(yield* fs.exists(profilePath))) {
+            yield* Effect.logWarning("No profile to save at", profilePath)
+            return
+          }
 
-            if (yield* fs.exists(templateDir)) {
-              yield* Effect.logInfo("Replacing existing template at", templateDir)
-              yield* fs.remove(templateDir, { recursive: true, force: true })
-            }
+          if (yield* fs.exists(templateDir)) {
+            yield* Effect.logInfo("Replacing existing template at", templateDir)
+            yield* fs.remove(templateDir, { recursive: true, force: true })
+          }
 
-            yield* fs.rename(profilePath, templateDir)
-            yield* Effect.logInfo("Template saved at", templateDir)
-          },
-          Effect.orDie,
-        ),
+          yield* fs.rename(profilePath, templateDir)
+          yield* Effect.logInfo("Template saved at", templateDir)
+        }, Effect.orDie),
       )
     },
     Effect.provide(TxConfig.layer),
@@ -107,25 +104,19 @@ const tiketCommand = Command.make("tiket").pipe(
 const debugPathsCommand = Command.make(
   "paths",
   {},
-  Effect.fn(
-    function* () {
-      const { paths } = yield* TxConfig
-      yield* Console.log(Formatter.format(paths, { space: 2 }))
-    },
-    Effect.provide(TxConfig.layer),
-  ),
+  Effect.fn(function* () {
+    const { paths } = yield* TxConfig
+    yield* Console.log(Formatter.format(paths, { space: 2 }))
+  }, Effect.provide(TxConfig.layer)),
 ).pipe(Command.withDescription("Print env-paths roots and derived app directories"))
 
 const debugConfigCommand = Command.make(
   "config",
   {},
-  Effect.fn(
-    function* () {
-      const { config } = yield* TxConfig
-      yield* Console.log(Formatter.formatJson(config, { space: 2 }))
-    },
-    Effect.provide(TxConfig.layer),
-  ),
+  Effect.fn(function* () {
+    const { config } = yield* TxConfig
+    yield* Console.log(Formatter.formatJson(config, { space: 2 }))
+  }, Effect.provide(TxConfig.layer)),
 ).pipe(Command.withDescription("Print resolved config.json"))
 
 const debugCommand = Command.make("debug").pipe(

@@ -3,7 +3,10 @@ import { CustomerStore } from "@/lib/customer-store"
 import { Effect, Fiber, Layer, Option } from "effect"
 import { NoPackageAvailable } from "../src/entrypoints/tiket-autobuy.content/errors"
 import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
-import { resetToOverview, runOverview } from "../src/entrypoints/tiket-autobuy.content/flow-overview"
+import {
+  resetToOverview,
+  runOverview,
+} from "../src/entrypoints/tiket-autobuy.content/flow-overview"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
 const defaultCustomer = {
@@ -62,8 +65,7 @@ describe("tiket autobuy", () => {
 
   it("resets packages to overview preserving locale and query", async () => {
     const locationState = {
-      pathname:
-        "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos/packages",
+      pathname: "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos/packages",
       search: "?utm_page=toDoDetail",
     }
     const assign = vi.fn((url: string) => {

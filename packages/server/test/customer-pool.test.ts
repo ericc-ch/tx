@@ -100,9 +100,12 @@ describe("CustomerPool", () => {
     Effect.gen(function* () {
       const { pool } = yield* withPool(sampleCustomers)
 
-      const claimed = yield* Effect.all(Array.from({ length: 10 }, () => pool.claim()), {
-        concurrency: 10,
-      })
+      const claimed = yield* Effect.all(
+        Array.from({ length: 10 }, () => pool.claim()),
+        {
+          concurrency: 10,
+        },
+      )
 
       const emails = claimed.flatMap((customer) => (customer ? [customer.email] : []))
       expect(emails).toHaveLength(3)

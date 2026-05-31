@@ -164,14 +164,14 @@ If user closes the sheet before finishing, i18n offers a dialog (`whitelistCode.
 
 ## Side-by-side summary
 
-|                      | General sale          | Membership / presale                          |
-| -------------------- | --------------------- | --------------------------------------------- |
-| API field            | no `packageWhitelist` | `packageWhitelist.whitelistId` + translations |
-| Primary surface      | Package card (inline) | `#pricetierDetail` popup                      |
-| First user action    | Pilih → expand card   | Open sheet → verify code                      |
-| Qty editor location  | On card               | Inside popup (after verify)                   |
-| Book button location | On card footer        | Popup sticky footer                           |
-| Pre-book gate        | None                  | API + sessionStorage                          |
+|                      | General sale          | Membership / presale                            |
+| -------------------- | --------------------- | ----------------------------------------------- |
+| API field            | no `packageWhitelist` | `packageWhitelist.whitelistId` + translations   |
+| Primary surface      | Package card (inline) | `#pricetierDetail` popup                        |
+| First user action    | Pilih → expand card   | Open sheet → verify code                        |
+| Qty editor location  | On card               | Inside popup (after verify)                     |
+| Book button location | On card footer        | Popup sticky footer                             |
+| Pre-book gate        | None                  | API + sessionStorage                            |
 | Extension today      | Implemented           | Implemented (verify gate in `flow-packages.ts`) |
 
 ---

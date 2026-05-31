@@ -23,9 +23,7 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
     const { config, paths } = yield* TxConfig
 
     if (config.customerDataPath.length === 0) {
-      return yield* Effect.die(
-        new Error(`customerDataPath is not set in ${paths.configFilePath}.`),
-      )
+      return yield* Effect.die(new Error(`customerDataPath is not set in ${paths.configFilePath}.`))
     }
 
     const dataPath = config.customerDataPath

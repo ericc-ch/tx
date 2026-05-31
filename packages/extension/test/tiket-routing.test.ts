@@ -1,8 +1,11 @@
 import { describe, expect, it } from "@effect/vitest"
-import { overviewUrl, packagesUrl, pageKind } from "../src/entrypoints/tiket-autobuy.content/routing"
+import {
+  overviewUrl,
+  packagesUrl,
+  pageKind,
+} from "../src/entrypoints/tiket-autobuy.content/routing"
 
-const base =
-  "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos"
+const base = "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos"
 const search = "?utm_page=toDoDetail"
 
 describe("tiket url", () => {
