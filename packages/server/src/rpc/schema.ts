@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Config, Schema } from "effect"
 import { Rpc, RpcGroup } from "effect/unstable/rpc"
 
 export const INIT_PAYLOAD_PARAM = "__init"
@@ -37,9 +37,14 @@ export const ClaimCustomerRes = Schema.Union([
   Schema.Struct({ empty: Schema.Literal(true) }),
 ])
 
+export const RemoteLogEntry = Schema.Struct({
+  level: Config.LogLevel,
+  message: Schema.Array(Schema.Unknown),
+})
+
 export const PushLogsPayload = Schema.Struct({
   browserId: Schema.String,
-  messages: Schema.Array(Schema.String),
+  entries: Schema.Array(RemoteLogEntry),
 })
 
 export const ServerRpcs = RpcGroup.make(

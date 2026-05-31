@@ -45,7 +45,8 @@ const runAutobuyFlow = Effect.gen(function* () {
 
   while (flowStep !== "done") {
     const browserState = pageKind(location)
-    yield* Effect.logDebug("Autobuy step", "browserState:", browserState, "flowStep:", flowStep)
+
+    yield* Effect.logDebug("Autobuy step", "browserState", browserState, "flowStep", flowStep)
 
     switch (flowStep) {
       case "routing":
