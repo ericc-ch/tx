@@ -2,7 +2,7 @@ import envPaths from "env-paths"
 import { Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
 
 const CONFIG_FILE_NAME = "config.json"
-const paths = envPaths("tx")
+const txEnvPaths = envPaths("tx")
 
 const TxConfigSchema = Schema.Struct({
   browserExecutable: Schema.String,
@@ -22,18 +22,22 @@ export class TxConfig extends Context.Service<TxConfig>()("@tx/server/TxConfig",
   make: Effect.fn(function* () {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const configFilePath = path.join(paths.config, CONFIG_FILE_NAME)
-    const userDataDir = path.join(paths.data, "user-data-dir")
-    const templateDir = path.join(userDataDir, "template")
+    const userDataDir = path.join(txEnvPaths.data, "user-data-dir")
+    const paths = {
+      env: txEnvPaths,
+      configFilePath: path.join(txEnvPaths.config, CONFIG_FILE_NAME),
+      userDataDir,
+      templateDir: path.join(userDataDir, "template"),
+    }
 
-    const rawContent = yield* fs.readFileString(configFilePath).pipe(
+    const rawContent = yield* fs.readFileString(paths.configFilePath).pipe(
       Effect.catchTag("PlatformError", (cause) =>
         Predicate.isTagged(cause.reason, "NotFound")
           ? Effect.gen(function* () {
-              yield* fs.makeDirectory(paths.config, { recursive: true })
+              yield* fs.makeDirectory(paths.env.config, { recursive: true })
               const content = `${JSON.stringify(defaultConfig, null, 2)}\n`
-              yield* fs.writeFileString(configFilePath, content)
-              yield* Effect.logInfo("Created default config at", configFilePath)
+              yield* fs.writeFileString(paths.configFilePath, content)
+              yield* Effect.logInfo("Created default config at", paths.configFilePath)
               return content
             })
           : Effect.fail(cause),
@@ -41,16 +45,9 @@ export class TxConfig extends Context.Service<TxConfig>()("@tx/server/TxConfig",
     )
 
     const config = yield* Schema.decodeUnknownEffect(TxConfigFile)(rawContent).pipe(Effect.orDie)
-    yield* fs.makeDirectory(userDataDir, { recursive: true })
+    yield* fs.makeDirectory(paths.userDataDir, { recursive: true })
 
-    return {
-      config,
-      paths: {
-        configFilePath,
-        userDataDir,
-        templateDir,
-      },
-    }
+    return { config, paths }
   }),
 }) {
   static layer = Layer.effect(this, this.make())

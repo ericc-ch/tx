@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node"
-import { Effect, FileSystem, Path } from "effect"
+import { Console, Effect, FileSystem, Formatter, Path } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { HttpServer } from "effect/unstable/http"
@@ -104,9 +104,38 @@ const tiketCommand = Command.make("tiket").pipe(
   Command.withSubcommands([tiketStartCommand, templateCommand]),
 )
 
+const debugPathsCommand = Command.make(
+  "paths",
+  {},
+  Effect.fn(
+    function* () {
+      const { paths } = yield* TxConfig
+      yield* Console.log(Formatter.format(paths, { space: 2 }))
+    },
+    Effect.provide(TxConfig.layer),
+  ),
+).pipe(Command.withDescription("Print env-paths roots and derived app directories"))
+
+const debugConfigCommand = Command.make(
+  "config",
+  {},
+  Effect.fn(
+    function* () {
+      const { config } = yield* TxConfig
+      yield* Console.log(Formatter.formatJson(config, { space: 2 }))
+    },
+    Effect.provide(TxConfig.layer),
+  ),
+).pipe(Command.withDescription("Print resolved config.json"))
+
+const debugCommand = Command.make("debug").pipe(
+  Command.withDescription("Debug and introspection"),
+  Command.withSubcommands([debugPathsCommand, debugConfigCommand]),
+)
+
 const command = Command.make("tx", {}).pipe(
   Command.withDescription("tx server"),
-  Command.withSubcommands([tiketCommand]),
+  Command.withSubcommands([tiketCommand, debugCommand]),
 )
 
 const cli = Command.run(command, { version: packageJson.version })
