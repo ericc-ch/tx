@@ -4,7 +4,7 @@ import { Duration, Effect } from "effect"
 import { NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
-  /^(pilih|select|pilih tiket|select ticket|verifikasi kodemu|verify(?: your)? code)$/i
+  /^(pilih|select|pilih tiket|select ticket|verifikasi kode|verify code)$/i
 export const VERIFY_BUTTON_TEXT = /^(verifikasi kodemu|verify your code)$/i
 export const ORDER_BUTTON_TEXT = /^(pesan|book)$/i
 export const SOLD_OUT_TEXT = /^(terjual habis|sold out)$/i
@@ -19,6 +19,13 @@ export const runPackages = Effect.gen(function* () {
     customer.categories.length > 0 ? customer.categories : DEFAULT_CATEGORY_PRIORITY
 
   const page = new Page(document)
+
+  // Wait for the first package card to be visible, otherwise available packages resolve to 0
+  yield* page
+    .getByTestId("package-card")
+    .filter({ visible: true })
+    .first()
+    .waitFor({ state: "visible", timeout: Duration.infinity })
 
   const cards = page.getByTestId("package-card").filter({ visible: true })
   const count = yield* cards.count()
@@ -42,7 +49,7 @@ export const runPackages = Effect.gen(function* () {
   }
 
   if (available.length === 0) {
-    yield* Effect.logDebug("No packages available")
+    yield* Effect.logWarning("No packages available")
     return yield* new NoPackageAvailable()
   }
 
@@ -54,9 +61,7 @@ export const runPackages = Effect.gen(function* () {
   const sheet = page.getByTestId("bottom-sheet-body").filter({ visible: true })
 
   for (const priority of categories) {
-    const match = available.find((pkg) =>
-      pkg.title.toLowerCase().includes(priority.toLowerCase()),
-    )
+    const match = available.find((pkg) => pkg.title.toLowerCase().includes(priority.toLowerCase()))
     if (!match) {
       yield* Effect.logDebug("No package found for", priority)
       continue
@@ -67,13 +72,17 @@ export const runPackages = Effect.gen(function* () {
     yield* match.selectButton.click({ timeout: Duration.infinity })
     yield* Effect.logInfo("Opening", match.title)
     yield* sheet.waitFor({ state: "visible", timeout: Duration.infinity })
-    // Have to wait for the sliding up animation
-    yield* Effect.sleep(Duration.millis(200))
 
     const verifyButton = sheet
       .getByRole("button", { name: VERIFY_BUTTON_TEXT, disabled: false })
       .first()
-    if ((yield* verifyButton.count()) > 0) {
+    const needsPresale = yield* verifyButton
+      .waitFor({ state: "visible", timeout: Duration.seconds(1) })
+      .pipe(
+        Effect.as(true),
+        Effect.catchTag("LocatorTimeout", () => Effect.succeed(false)),
+      )
+    if (needsPresale) {
       if (!customer.membershipCode) {
         yield* Effect.logInfo(
           "Presale code required but no membership code configured for",
@@ -86,13 +95,6 @@ export const runPackages = Effect.gen(function* () {
       const codeInput = sheet.locator('input[type="text"]').filter({ visible: true }).first()
       yield* codeInput.fill(customer.membershipCode, { timeout: Duration.infinity })
       yield* verifyButton.click({ timeout: Duration.infinity })
-
-      const quantityEditor = sheet
-        .locator('[data-testid^="ticket-qty-editor-"]')
-        .filter({ visible: true })
-        .first()
-      yield* quantityEditor.waitFor({ state: "visible", timeout: Duration.infinity })
-      yield* Effect.sleep(Duration.millis(200))
     }
 
     const quantityInput = sheet.locator('input[type="number"]').filter({ visible: true }).first()
