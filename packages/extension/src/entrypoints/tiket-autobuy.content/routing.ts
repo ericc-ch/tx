@@ -2,28 +2,28 @@ export const normalizePath = (pathname: string) => pathname.replace(/\/$/, "") |
 
 export type PageKind = "overview" | "packages" | "order" | "unknown"
 
-export const pageKind = (pathname: string): PageKind => {
-  const base = normalizePath(pathname)
+export const pageKind = (location: Pick<Location, "pathname">): PageKind => {
+  const base = normalizePath(location.pathname)
   if (base.endsWith("/order")) return "order"
   if (base.endsWith("/packages")) return "packages"
   if (base.includes("/to-do/")) return "overview"
   return "unknown"
 }
 
-export const overviewUrl = (pathname: string, search: string) => {
-  if (pageKind(pathname) === "overview") return null
+export const overviewUrl = (location: Pick<Location, "pathname" | "search">) => {
+  if (pageKind(location) === "overview") return null
 
-  const base = normalizePath(pathname)
+  const base = normalizePath(location.pathname)
   if (!base.endsWith("/packages") && !base.endsWith("/order")) return null
 
   const overviewBase = base.endsWith("/order")
     ? base.slice(0, -"/order".length)
     : base.slice(0, -"/packages".length)
-  return `${overviewBase}${search}`
+  return `${overviewBase}${location.search}`
 }
 
-export const packagesUrl = (pathname: string, search: string) => {
-  const base = normalizePath(pathname)
+export const packagesUrl = (location: Pick<Location, "pathname" | "search">) => {
+  const base = normalizePath(location.pathname)
   if (base.endsWith("/packages")) return null
-  return `${base}/packages${search}`
+  return `${base}/packages${location.search}`
 }

@@ -1,38 +1,22 @@
 import { Duration, Effect } from "effect"
-
-const isOverviewPath = (pathname: string) => {
-  const base = pathname.replace(/\/$/, "")
-  return base.includes("/to-do/") && !base.endsWith("/packages") && !base.endsWith("/order")
-}
+import { overviewUrl, packagesUrl, pageKind } from "./routing"
 
 export const resetToOverview = Effect.gen(function* () {
-  const { pathname, search } = location
-  if (isOverviewPath(pathname)) return
+  const url = overviewUrl(location)
+  if (!url) return
 
-  const base = pathname.replace(/\/$/, "")
-  if (!base.endsWith("/packages") && !base.endsWith("/order")) return
+  yield* Effect.sync(() => location.assign(url))
+  yield* Effect.logInfo("Resetting to overview", url)
 
-  const overviewBase = base.endsWith("/order")
-    ? base.slice(0, -"/order".length)
-    : base.slice(0, -"/packages".length)
-  const overviewUrl = `${overviewBase}${search}`
-
-  yield* Effect.sync(() => location.assign(overviewUrl))
-  yield* Effect.logInfo("Resetting to overview", overviewUrl)
-
-  while (!isOverviewPath(location.pathname)) {
+  while (pageKind(location) !== "overview") {
     yield* Effect.sleep(Duration.millis(100))
   }
 })
 
 export const runOverview = Effect.gen(function* () {
-  const { pathname, search } = location
-  const base = pathname.replace(/\/$/, "")
-  if (base.endsWith("/packages")) return
+  const url = packagesUrl(location)
+  if (!url) return
 
-  const packagesUrl = `${base}/packages${search}`
-  yield* Effect.sync(() => {
-    location.assign(packagesUrl)
-  })
-  yield* Effect.logInfo("Navigating to", packagesUrl)
+  yield* Effect.sync(() => location.assign(url))
+  yield* Effect.logInfo("Navigating to", url)
 })

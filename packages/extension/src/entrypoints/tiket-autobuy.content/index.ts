@@ -1,5 +1,5 @@
-import { Config } from "@/lib/config"
-import { CustomerStore } from "@/lib/customer"
+import { Init } from "@/lib/init"
+import { CustomerStore } from "@/lib/customer-store"
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { ServerRpcs } from "@tx/server/schema"
@@ -8,7 +8,7 @@ import { RpcClient } from "effect/unstable/rpc"
 import { runOrder } from "./flow-order"
 import { resetToOverview, runOverview } from "./flow-overview"
 import { runPackages } from "./flow-packages"
-import { pageKind } from "./url"
+import { pageKind } from "./routing"
 
 const maxAutobuyAttempts = 3
 
@@ -23,8 +23,8 @@ const acquireCustomer = Effect.gen(function* () {
   }
 
   const client = yield* RpcClient.make(ServerRpcs)
-  const config = yield* Config
-  const { browserId } = yield* config.get()
+  const init = yield* Init
+  const { browserId } = yield* init.get()
 
   while (true) {
     const response = yield* client.ClaimCustomer({ browserId })
@@ -44,7 +44,7 @@ const runAutobuyFlow = Effect.gen(function* () {
   let flowStep: FlowStep = "routing"
 
   while (flowStep !== "done") {
-    const browserState = pageKind(location.pathname)
+    const browserState = pageKind(location)
     yield* Effect.logDebug("Autobuy step", "browserState:", browserState, "flowStep:", flowStep)
 
     switch (flowStep) {
