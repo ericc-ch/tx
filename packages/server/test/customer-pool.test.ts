@@ -2,6 +2,7 @@ import { NodeFileSystem, NodePath } from "@effect/platform-node"
 import { describe, expect, it } from "@effect/vitest"
 import { Effect, FileSystem, Layer, Path } from "effect"
 import { CustomerPool } from "../src/lib/customer-pool.ts"
+import { TxConfig } from "../src/lib/config.ts"
 
 const NodePlatform = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)
 
@@ -58,7 +59,27 @@ const withPool = (customers: ReadonlyArray<(typeof sampleCustomers)[number]>) =>
     return yield* Effect.gen(function* () {
       const pool = yield* CustomerPool
       return { pool, file, fs }
-    }).pipe(Effect.provide(CustomerPool.layer({ path: file })), Effect.scoped)
+    }).pipe(
+      Effect.provide(
+        CustomerPool.layer.pipe(
+          Layer.provide(
+            Layer.succeed(TxConfig, {
+              config: {
+                browserExecutable: "helium",
+                browserExtensionPath: "",
+                customerDataPath: file,
+              },
+              paths: {
+                configFilePath: file,
+                userDataDir: dir,
+                templateDir: path.join(dir, "template"),
+              },
+            }),
+          ),
+        ),
+      ),
+      Effect.scoped,
+    )
   }).pipe(Effect.provide(NodePlatform), Effect.scoped)
 
 describe("CustomerPool", () => {

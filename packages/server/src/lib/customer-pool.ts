@@ -4,11 +4,13 @@ import {
   Effect,
   FileSystem,
   Layer,
+  Option,
   Schema,
   Stream,
   SynchronizedRef,
 } from "effect"
 import { Customer, CustomerDataFile, customerKey } from "../rpc/schema.ts"
+import { TxConfig } from "./config.ts"
 
 type PoolState = {
   available: ReadonlyArray<typeof Customer.Type>
@@ -16,36 +18,39 @@ type PoolState = {
 }
 
 export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/CustomerPool", {
-  make: Effect.fn(function* ({ path }: { path: string }) {
+  make: Effect.fn(function* () {
     const fs = yield* FileSystem.FileSystem
+    const { config, paths } = yield* TxConfig
+
+    if (config.customerDataPath.length === 0) {
+      return yield* Effect.die(
+        new Error(`customerDataPath is not set in ${paths.configFilePath}.`),
+      )
+    }
+
+    const dataPath = config.customerDataPath
+
     const ref = yield* SynchronizedRef.make<PoolState>({
       available: [],
       claimedKeys: new Set<string>(),
     })
 
     const loadFile = Effect.fn(function* () {
-      const content = yield* fs.readFileString(path)
+      const content = yield* fs.readFileString(dataPath)
       return yield* Schema.decodeUnknownEffect(CustomerDataFile)(content)
     })
 
-    const initial = yield* loadFile()
+    const initial = yield* loadFile().pipe(Effect.orDie)
     yield* SynchronizedRef.set(ref, { available: initial, claimedKeys: new Set<string>() })
-    yield* Effect.logInfo("Customer pool loaded", initial.length, "rows from", path)
+    yield* Effect.logInfo("Customer pool loaded", initial.length, "rows from", dataPath)
 
     const reload = Effect.fn(function* () {
-      const rows = yield* loadFile().pipe(
-        Effect.catch((cause) =>
-          Effect.logError("Failed to reload customer data", cause).pipe(Effect.as(null)),
-        ),
-      )
-      if (!rows) {
-        yield* Effect.logWarning("No new customer data loaded")
-        return
-      }
+      const rows = yield* loadFile().pipe(Effect.option)
+      if (Option.isNone(rows)) return
 
       const added = yield* SynchronizedRef.modify(ref, (state) => {
         const availableKeys = new Set(state.available.map(customerKey))
-        const newRows = rows.filter((row) => {
+        const newRows = rows.value.filter((row) => {
           const key = customerKey(row)
           if (state.claimedKeys.has(key)) return false
           if (availableKeys.has(key)) return false
@@ -63,7 +68,7 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
     })
 
     yield* Effect.forkScoped(
-      fs.watch(path).pipe(
+      fs.watch(dataPath).pipe(
         Stream.debounce(Duration.millis(300)),
         Stream.runForEach(() => reload()),
       ),
@@ -84,5 +89,5 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
     return { claim }
   }),
 }) {
-  static layer = (options: { path: string }) => Layer.effect(this, this.make(options))
+  static layer = Layer.effect(this, this.make())
 }
