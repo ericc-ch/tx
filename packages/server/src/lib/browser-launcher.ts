@@ -1,6 +1,7 @@
-import { Context, Effect, FileSystem, Layer, Schema } from "effect"
+import { Context, Effect, FileSystem, Layer, Path, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
+import { TxConfig } from "./config.ts"
 import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "../rpc/schema.ts"
 
 interface BrowserEntry {
@@ -8,14 +9,7 @@ interface BrowserEntry {
   profilePath: string
 }
 
-interface BrowserLauncherOptions {
-  browserPath: string
-  extensionPath: string
-}
-
-const pickWord = <T>(words: ReadonlyArray<T>) => words[Math.floor(Math.random() * words.length)]
-
-const browserSwitches = [
+export const browserSwitches = [
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-default-apps",
@@ -29,44 +23,78 @@ const browserSwitches = [
 ]
 
 export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/server/BrowserLauncher", {
-  make: Effect.fn(function* ({ browserPath, extensionPath }: BrowserLauncherOptions) {
+  make: Effect.fn(function* () {
     const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const { config, paths } = yield* TxConfig
+    const { configFilePath, userDataDir, templateDir } = paths
     const browsers = new Map<string, BrowserEntry>()
     let nextBrowserIndex = 1
 
-    const extensionExists = yield* fs.exists(extensionPath)
+    if (config.browserExtensionPath.length === 0) {
+      return yield* Effect.die(
+        new Error(
+          `browserExtensionPath is not set in ${configFilePath}. Run: pnpm --filter @tx/extension build, then set the path in config.`,
+        ),
+      )
+    }
+
+    const extensionExists = yield* fs.exists(config.browserExtensionPath)
     if (!extensionExists) {
       return yield* Effect.die(
         new Error(
-          `Built extension not found at ${extensionPath}. Run: pnpm --filter @tx/extension build`,
+          `Built extension not found at ${config.browserExtensionPath}. Run: pnpm --filter @tx/extension build, then update ${configFilePath}.`,
         ),
       )
     }
 
     const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
       const browserId = yield* Effect.sync(() => {
-        const adjective = pickWord(words.adjectives)
-        const noun = pickWord(words.nouns)
+        const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
+        const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
         return `${port}-${nextBrowserIndex++}-${adjective}-${noun}`
       })
-      const dir = yield* fs.makeTempDirectory({ prefix: browserId })
-      yield* Effect.logInfo(`Profile created for ${browserId} at`, dir)
+
+      const templateExists = yield* fs.exists(templateDir)
+      if (!templateExists) {
+        return yield* Effect.die(
+          new Error(
+            `Template profile not found at ${templateDir}. Create one with: tx tiket template create`,
+          ),
+        )
+      }
+
+      const profilePath = path.join(userDataDir, browserId)
+      yield* fs.copy(templateDir, profilePath)
+      yield* Effect.logInfo(`Profile created for ${browserId} at`, profilePath)
 
       const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({ browserId, port })
 
       const urlWithInit = new URL(url)
       urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)
 
-      const command = ChildProcess.make(browserPath, [
-        `--user-data-dir=${dir}`,
-        `--load-extension=${extensionPath}`,
+      const command = ChildProcess.make(config.browserExecutable, [
+        `--user-data-dir=${userDataDir}`,
+        `--profile-directory=${browserId}`,
+        `--load-extension=${config.browserExtensionPath}`,
         ...browserSwitches,
         urlWithInit.toString(),
       ])
-      const handle = yield* spawner.spawn(command)
+      const handle = yield* Effect.acquireRelease(
+        spawner.spawn(command),
+        Effect.fn(
+          function* () {
+            yield* Effect.sync(() => {
+              browsers.delete(browserId)
+            })
+            yield* fs.remove(profilePath, { recursive: true, force: true })
+          },
+          Effect.orDie,
+        ),
+      )
 
-      const entry = { handle, profilePath: dir } satisfies BrowserEntry
+      const entry = { handle, profilePath }
       yield* Effect.sync(() => {
         browsers.set(browserId, entry)
       })
@@ -83,36 +111,12 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/ser
       })
       if (!entry) return
 
-      yield* Effect.ensuring(
-        entry.handle
-          .kill()
-          .pipe(
-            Effect.catchTag("PlatformError", (err) =>
-              Effect.logWarning(`Browser ${browserId} kill failed (may already be dead)`, err),
-            ),
-          ),
-        fs
-          .remove(entry.profilePath, { recursive: true, force: true })
-          .pipe(
-            Effect.catchTag("PlatformError", (err) =>
-              Effect.logError(`Failed to remove profile for ${browserId}`, err),
-            ),
-          ),
-      )
+      yield* entry.handle.kill().pipe(Effect.ignore)
+      yield* fs.remove(entry.profilePath, { recursive: true, force: true })
     })
-
-    yield* Effect.addFinalizer(
-      Effect.fn(function* () {
-        const browserIds = yield* Effect.sync(() => Array.from(browsers.keys()))
-        for (const browserId of browserIds) {
-          yield* Effect.logInfo(`Cleaning up browser ${browserId}`)
-          yield* kill(browserId)
-        }
-      }),
-    )
 
     return { spawn, kill }
   }),
 }) {
-  static layer = (options: BrowserLauncherOptions) => Layer.effect(this, this.make(options))
+  static layer = Layer.effect(this, this.make())
 }
