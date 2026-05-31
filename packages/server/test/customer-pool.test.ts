@@ -72,7 +72,7 @@ const withPool = (customers: ReadonlyArray<(typeof sampleCustomers)[number]>) =>
               paths: {
                 configFilePath: file,
                 userDataDir: dir,
-                templateDir: path.join(dir, "template"),
+                templateDir: path.join(dir, "__profile-template"),
               },
             }),
           ),
