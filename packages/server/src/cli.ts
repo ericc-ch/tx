@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node"
-import { Console, Effect, FileSystem, Formatter, Path } from "effect"
+import { Console, Effect, FileSystem, Formatter, Path, Schema } from "effect"
 import { Argument, Command, Flag } from "effect/unstable/cli"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { HttpServer } from "effect/unstable/http"
+import open from "open"
 import os from "node:os"
 import packageJson from "../package.json" with { type: "json" }
 import { BrowserLauncher, browserSwitches } from "./lib/browser-launcher.ts"
-import { TxConfig } from "./lib/config.ts"
+import { TxConfig, TxConfigSchema } from "./lib/config.ts"
 import { TiketLive } from "./layers.ts"
 
 const templateProfileDirectory = "template-draft"
@@ -110,6 +111,24 @@ const debugPathsCommand = Command.make(
   }, Effect.provide(TxConfig.layer)),
 ).pipe(Command.withDescription("Print env-paths roots and derived app directories"))
 
+const debugConfigSchemaCommand = Command.make(
+  "schema",
+  {},
+  Effect.fn(function* () {
+    const document = Schema.toJsonSchemaDocument(TxConfigSchema)
+    yield* Console.log(Formatter.formatJson(document.schema, { space: 2 }))
+  }),
+).pipe(Command.withDescription("Print config.json JSON Schema"))
+
+const debugConfigOpenCommand = Command.make(
+  "open",
+  {},
+  Effect.fn(function* () {
+    const { paths } = yield* TxConfig
+    yield* Effect.tryPromise(() => open(paths.configFilePath))
+  }, Effect.provide(TxConfig.layer)),
+).pipe(Command.withDescription("Open config.json in the default application"))
+
 const debugConfigCommand = Command.make(
   "config",
   {},
@@ -117,7 +136,10 @@ const debugConfigCommand = Command.make(
     const { config } = yield* TxConfig
     yield* Console.log(Formatter.formatJson(config, { space: 2 }))
   }, Effect.provide(TxConfig.layer)),
-).pipe(Command.withDescription("Print resolved config.json"))
+).pipe(
+  Command.withDescription("Print resolved config.json"),
+  Command.withSubcommands([debugConfigSchemaCommand, debugConfigOpenCommand]),
+)
 
 const debugCommand = Command.make("debug").pipe(
   Command.withDescription("Debug and introspection"),

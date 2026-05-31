@@ -4,10 +4,11 @@ import { Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "eff
 const CONFIG_FILE_NAME = "config.json"
 const txEnvPaths = envPaths("tx")
 
-const TxConfigSchema = Schema.Struct({
+export const TxConfigSchema = Schema.Struct({
   browserExecutable: Schema.String,
   browserExtensionPath: Schema.String,
   customerDataPath: Schema.String,
+  $schema: Schema.optional(Schema.String),
 })
 
 const TxConfigFile = Schema.fromJsonString(TxConfigSchema)
