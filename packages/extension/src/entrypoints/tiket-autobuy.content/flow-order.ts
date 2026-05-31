@@ -1,4 +1,4 @@
-import { CustomerStore } from "@/lib/customer"
+import { CustomerStore } from "@/lib/customer-store"
 import { Effect } from "effect"
 
 export const runOrder = Effect.gen(function* () {

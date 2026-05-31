@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "@effect/vitest"
-import { CustomerStore } from "@/lib/customer"
+import { CustomerStore } from "@/lib/customer-store"
 import { Effect, Fiber, Layer, Option } from "effect"
 import { NoPackageAvailable } from "../src/entrypoints/tiket-autobuy.content/errors"
 import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"

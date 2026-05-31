@@ -1,4 +1,4 @@
-import { CustomerStore } from "@/lib/customer"
+import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
 import { Duration, Effect } from "effect"
 import { NoPackageAvailable } from "./errors"

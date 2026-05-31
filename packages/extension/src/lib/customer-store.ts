@@ -4,7 +4,7 @@ import { readItem, readItemOption, removeItem, writeItem } from "./storage"
 
 const CUSTOMER_STORAGE_KEY = "local:customer"
 
-export class CustomerStore extends Context.Service<CustomerStore>()("tx/CustomerStore", {
+export class CustomerStore extends Context.Service<CustomerStore>()("@tx/extension/CustomerStore", {
   make: Effect.sync(() => {
     return {
       get: Effect.fn(function* () {
