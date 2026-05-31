@@ -3,16 +3,16 @@ import { Context, Effect, Layer, Option, Schema } from "effect"
 import { browser } from "wxt/browser"
 import { readItem, writeItem } from "./storage"
 
-const CONFIG_STORAGE_KEY = "local:config"
+const INIT_STORAGE_KEY = "local:init"
 
-export class Config extends Context.Service<Config>()("tx/Config", {
+export class Init extends Context.Service<Init>()("@tx/extension/Init", {
   make: Effect.sync(() => {
     return {
       get: Effect.fn(function* () {
-        return yield* readItem(CONFIG_STORAGE_KEY, InitPayload, "Extension config not loaded")
+        return yield* readItem(INIT_STORAGE_KEY, InitPayload, "Extension init not loaded")
       }),
       set: Effect.fn(function* (payload: typeof InitPayload.Type) {
-        yield* writeItem(CONFIG_STORAGE_KEY, payload)
+        yield* writeItem(INIT_STORAGE_KEY, payload)
       }),
     }
   }),
@@ -20,8 +20,8 @@ export class Config extends Context.Service<Config>()("tx/Config", {
   static layer = Layer.effect(this, this.make)
 }
 
-export const registerConfigCapture = Effect.gen(function* () {
-  const config = yield* Config
+export const registerInitCapture = Effect.gen(function* () {
+  const init = yield* Init
   const context = yield* Effect.context()
 
   yield* Effect.sync(() => {
@@ -37,8 +37,8 @@ export const registerConfigCapture = Effect.gen(function* () {
           encoded.value,
         ).pipe(Effect.orDie)
 
-        yield* config.set(payload)
-        yield* Effect.logInfo("Captured and persisted config:", payload)
+        yield* init.set(payload)
+        yield* Effect.logInfo("Captured and persisted init:", payload)
       }).pipe(Effect.runForkWith(context))
     })
   })

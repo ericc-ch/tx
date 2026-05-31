@@ -1,4 +1,4 @@
-import { Config } from "@/lib/config"
+import { Init } from "@/lib/init"
 import { RemoteLoggerLayer } from "@/lib/logger"
 import { Effect, Layer, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
@@ -58,14 +58,14 @@ export const RpcClientLayer = Layer.effect(
 
 export const registerRpcTunnel = Effect.gen(function* () {
   const http = yield* HttpClient.HttpClient
-  const config = yield* Config
+  const init = yield* Init
 
   yield* Effect.sync(() => {
     browser.runtime.onMessage.addListener((message) => {
       if (!Schema.is(ForwardMsg)(message)) return false
 
       return Effect.gen(function* () {
-        const { port } = yield* config.get()
+        const { port } = yield* init.get()
         const url = `http://localhost:${port}/rpc`
 
         const request = HttpClientRequest.post(url).pipe(
@@ -78,9 +78,9 @@ export const registerRpcTunnel = Effect.gen(function* () {
   })
 })
 
-export const BackgroundLive = Layer.mergeAll(FetchHttpClient.layer, Config.layer)
+export const BackgroundLive = Layer.mergeAll(FetchHttpClient.layer, Init.layer)
 
 export const ContentLive = RemoteLoggerLayer.pipe(
   Layer.provideMerge(RpcClientLayer),
-  Layer.provideMerge(Config.layer),
+  Layer.provideMerge(Init.layer),
 )
