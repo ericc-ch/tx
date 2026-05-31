@@ -1,4 +1,4 @@
-import { Data, Duration, Effect, Ref, Schedule } from "effect"
+import { Data, Duration, Effect, Schedule } from "effect"
 
 type TextMatcher = string | RegExp
 
@@ -28,9 +28,12 @@ type WaitOptions = {
   readonly timeout?: Duration.Input
 }
 
-type ActionOptions = {
-  readonly force?: boolean
+type TimeoutOptions = {
   readonly timeout?: Duration.Input
+}
+
+type ActionOptions = TimeoutOptions & {
+  readonly force?: boolean
   readonly trial?: boolean
 }
 
@@ -44,6 +47,7 @@ type SelectOption =
 
 const defaultTimeout = Duration.seconds(30)
 const pollInterval = Duration.millis(10)
+const pollSchedule = Schedule.spaced(pollInterval)
 
 export class LocatorTimeout extends Data.TaggedError("LocatorTimeout")<{
   readonly selector: string
@@ -74,6 +78,15 @@ export class NotInteractable extends Data.TaggedError("NotInteractable")<{
     return `${this.selector} is not interactable: ${this.reason}`
   }
 }
+
+class ElementNotFound extends Data.TaggedError("ElementNotFound")<{
+  readonly selector: string
+}> {}
+
+class StateNotMet extends Data.TaggedError("StateNotMet")<{
+  readonly selector: string
+  readonly state: string
+}> {}
 
 export type PlaywliteError = LocatorTimeout | StrictModeViolation | NotInteractable
 
@@ -167,29 +180,43 @@ export class Locator {
     return Effect.sync(() => this.query().length)
   }
 
-  textContent() {
-    return this.resolve().pipe(Effect.map((element) => element.textContent))
+  textContent(options?: TimeoutOptions) {
+    return pollAttached({
+      query: this.query,
+      selector: this.selector,
+      run: (element) => Effect.succeed(element.textContent),
+      ...timeoutOption(options?.timeout),
+    })
   }
 
-  innerText() {
+  innerText(options?: TimeoutOptions) {
     const selector = this.selector
-    return this.resolve().pipe(
-      Effect.flatMap((element) =>
+    return pollAttached({
+      query: this.query,
+      selector: this.selector,
+      run: (element) =>
         element instanceof HTMLElement
           ? Effect.succeed(element.innerText ?? element.textContent ?? "")
           : Effect.fail(new NotInteractable({ selector, reason: "wrong-element" })),
-      ),
-    )
+      ...timeoutOption(options?.timeout),
+    })
   }
 
-  getAttribute(name: string) {
-    return this.resolve().pipe(Effect.map((element) => element.getAttribute(name)))
+  getAttribute(name: string, options?: TimeoutOptions) {
+    return pollAttached({
+      query: this.query,
+      selector: this.selector,
+      run: (element) => Effect.succeed(element.getAttribute(name)),
+      ...timeoutOption(options?.timeout),
+    })
   }
 
-  inputValue() {
+  inputValue(options?: TimeoutOptions) {
     const selector = this.selector
-    return this.resolve().pipe(
-      Effect.flatMap((element) => {
+    return pollAttached({
+      query: this.query,
+      selector: this.selector,
+      run: (element) => {
         if (
           element instanceof HTMLInputElement ||
           element instanceof HTMLTextAreaElement ||
@@ -198,45 +225,42 @@ export class Locator {
           return Effect.succeed(element.value)
         }
         return Effect.fail(new NotInteractable({ selector, reason: "wrong-element" }))
-      }),
-    )
+      },
+      ...timeoutOption(options?.timeout),
+    })
   }
 
   isVisible() {
-    return this.queryState("visible")
+    return queryStateInstant(this.query, this.selector, "visible")
   }
 
   isHidden() {
-    return this.queryState("hidden")
+    return queryStateInstant(this.query, this.selector, "hidden")
   }
 
-  isEnabled() {
-    return this.queryState("enabled")
+  isEnabled(options?: TimeoutOptions) {
+    return this.pollBooleanState("enabled", options)
   }
 
-  isDisabled() {
-    return this.queryState("disabled")
+  isDisabled(options?: TimeoutOptions) {
+    return this.pollBooleanState("disabled", options)
   }
 
-  isEditable() {
-    return this.queryState("editable")
+  isEditable(options?: TimeoutOptions) {
+    return this.pollBooleanState("editable", options)
   }
 
-  isChecked() {
-    return this.queryState("checked")
+  isChecked(options?: TimeoutOptions) {
+    return this.pollBooleanState("checked", options)
   }
 
   waitFor(options: WaitOptions = {}) {
     const state = options.state ?? "visible"
     const query = this.query
     const selector = this.selector
-    return waitUntil(
+    return poll(
       Effect.gen(function* () {
-        const elements = yield* Effect.sync(query)
-        if (elements.length > 1) {
-          return yield* new StrictModeViolation({ selector, count: elements.length })
-        }
-        const element = elements[0]
+        const element = yield* lookupStrict(query, selector)
         const matches = (() => {
           switch (state) {
             case "attached":
@@ -252,15 +276,14 @@ export class Locator {
           }
         })()
 
-        if (!matches) {
-          return yield* new LocatorTimeout({
-            selector,
-            state,
-            timeout: toDuration(options.timeout),
-          })
+        if (matches) return
+
+        if (!element && (state === "attached" || state === "visible")) {
+          return yield* new ElementNotFound({ selector })
         }
+        return yield* new StateNotMet({ selector, state })
       }),
-      { selector, state, ...(options.timeout ? { timeout: options.timeout } : {}) },
+      { selector, state, ...timeoutOption(options.timeout) },
     )
   }
 
@@ -381,15 +404,17 @@ export class Locator {
     })
   }
 
-  dispatchEvent(type: string, eventInit: EventInit = {}) {
-    const resolved = this.resolve()
-    return Effect.gen(function* () {
-      const element = yield* resolved
-      yield* Effect.sync(() => {
-        element.dispatchEvent(
-          new Event(type, { bubbles: true, cancelable: true, composed: true, ...eventInit }),
-        )
-      })
+  dispatchEvent(type: string, eventInit: EventInit = {}, options?: TimeoutOptions) {
+    return pollAttached({
+      query: this.query,
+      selector: this.selector,
+      run: (element) =>
+        Effect.sync(() => {
+          element.dispatchEvent(
+            new Event(type, { bubbles: true, cancelable: true, composed: true, ...eventInit }),
+          )
+        }),
+      ...timeoutOption(options?.timeout),
     })
   }
 
@@ -397,20 +422,15 @@ export class Locator {
     return new Locator(query, `${this.selector}.${label}`)
   }
 
-  private resolve() {
-    const query = this.query
-    const selector = this.selector
-    return Effect.gen(function* () {
-      const elements = yield* Effect.sync(query)
-      if (elements.length === 1) return elements[0]!
-      if (elements.length > 1) {
-        return yield* new StrictModeViolation({ selector, count: elements.length })
-      }
-      return yield* new LocatorTimeout({
-        selector,
-        state: "attached",
-        timeout: defaultTimeout,
-      })
+  private pollBooleanState(
+    state: "enabled" | "disabled" | "editable" | "checked",
+    options?: TimeoutOptions,
+  ) {
+    return pollAttached({
+      query: this.query,
+      selector: this.selector,
+      run: (element) => Effect.succeed(evaluateElementState(element, state)),
+      ...timeoutOption(options?.timeout),
     })
   }
 
@@ -418,56 +438,27 @@ export class Locator {
     checks: ReadonlyArray<"visible" | "enabled" | "editable">,
     options: ActionOptions,
   ) {
-    const resolved = this.resolve()
-    const selector = this.selector
-    return waitUntil(
-      Effect.gen(function* () {
-        const element = yield* resolved
-        if (!options.force) {
-          if (checks.includes("visible") && !isElementVisible(element)) {
-            return yield* new NotInteractable({ selector, reason: "hidden" })
-          }
-          if (checks.includes("enabled") && isDisabled(element)) {
-            return yield* new NotInteractable({ selector, reason: "disabled" })
-          }
-          if (checks.includes("editable") && !isEditable(element)) {
-            return yield* new NotInteractable({ selector, reason: "not-editable" })
-          }
-        }
-        return element
-      }),
-      { selector, state: "actionable", ...(options.timeout ? { timeout: options.timeout } : {}) },
-    )
-  }
-
-  private queryState(
-    state: "visible" | "hidden" | "enabled" | "disabled" | "editable" | "checked",
-  ) {
     const query = this.query
     const selector = this.selector
-    return Effect.gen(function* () {
-      const elements = yield* Effect.sync(query)
-      if (elements.length === 0) return state === "hidden"
-      if (elements.length > 1) {
-        return yield* new StrictModeViolation({ selector, count: elements.length })
-      }
-      const element = elements[0]!
-      switch (state) {
-        case "visible":
-          return isElementVisible(element)
-        case "hidden":
-          return !isElementVisible(element)
-        case "enabled":
-          return !isDisabled(element)
-        case "disabled":
-          return isDisabled(element)
-        case "editable":
-          return isEditable(element)
-        case "checked":
-          return element instanceof HTMLInputElement && element.checked
-        default:
-          return state satisfies never
-      }
+    return pollAttached({
+      query,
+      selector,
+      run: (element) => {
+        if (!options.force) {
+          if (checks.includes("visible") && !isElementVisible(element)) {
+            return Effect.fail(new NotInteractable({ selector, reason: "hidden" }))
+          }
+          if (checks.includes("enabled") && isDisabled(element)) {
+            return Effect.fail(new NotInteractable({ selector, reason: "disabled" }))
+          }
+          if (checks.includes("editable") && !isEditable(element)) {
+            return Effect.fail(new NotInteractable({ selector, reason: "not-editable" }))
+          }
+        }
+        return Effect.succeed(element)
+      },
+      state: "actionable",
+      ...timeoutOption(options.timeout),
     })
   }
 }
@@ -550,41 +541,106 @@ export class Page {
   }
 }
 
-const waitUntil = <A>(
-  effect: Effect.Effect<A, PlaywliteError>,
+const isRetriablePollError = (error: unknown) => {
+  if (typeof error !== "object" || error === null || !("_tag" in error)) return false
+  switch (error._tag) {
+    case "ElementNotFound":
+    case "StateNotMet":
+      return true
+    case "NotInteractable":
+      return (error as NotInteractable).reason !== "wrong-element"
+    default:
+      return false
+  }
+}
+
+const poll = <A, E>(
+  attempt: Effect.Effect<A, E>,
   options: { readonly selector: string; readonly state: string; readonly timeout?: Duration.Input },
 ) => {
-  const timeout = options.timeout ?? defaultTimeout
+  const timeout = toDuration(options.timeout)
 
-  return Effect.gen(function* () {
-    const lastError = yield* Ref.make<PlaywliteError | undefined>(undefined)
+  return attempt.pipe(
+    Effect.retry({
+      while: isRetriablePollError,
+      schedule: pollSchedule,
+    }),
+    Effect.timeoutOrElse({
+      duration: timeout,
+      orElse: () =>
+        Effect.fail(
+          new LocatorTimeout({
+            selector: options.selector,
+            state: options.state,
+            timeout,
+          }),
+        ),
+    }),
+  )
+}
 
-    return yield* effect.pipe(
-      Effect.tapError((error) => Ref.set(lastError, error)),
-      Effect.retry({
-        schedule: Schedule.spaced(pollInterval),
-        while: (error) =>
-          error._tag !== "StrictModeViolation" &&
-          (error._tag !== "NotInteractable" || error.reason !== "wrong-element"),
-      }),
-      Effect.timeoutOrElse({
-        duration: timeout,
-        orElse: () =>
-          Ref.get(lastError).pipe(
-            Effect.flatMap((error) =>
-              Effect.fail(
-                error ??
-                  new LocatorTimeout({
-                    selector: options.selector,
-                    state: options.state,
-                    timeout: toDuration(timeout),
-                  }),
-              ),
-            ),
-          ),
-      }),
-    )
+const lookupStrict = (query: Query, selector: string) =>
+  Effect.sync(query).pipe(
+    Effect.flatMap((elements) => {
+      if (elements.length > 1) {
+        return Effect.fail(new StrictModeViolation({ selector, count: elements.length }))
+      }
+      return Effect.succeed(elements[0])
+    }),
+  )
+
+const pollAttached = <A, E>({
+  query,
+  selector,
+  run,
+  timeout,
+  state = "attached",
+}: {
+  readonly query: Query
+  readonly selector: string
+  readonly run: (element: Element) => Effect.Effect<A, E>
+  readonly timeout?: Duration.Input
+  readonly state?: string
+}) =>
+  poll(
+    Effect.gen(function* () {
+      const element = yield* lookupStrict(query, selector).pipe(
+        Effect.filterOrFail(
+          (el): el is Element => el !== undefined,
+          () => new ElementNotFound({ selector }),
+        ),
+      )
+      return yield* run(element)
+    }),
+    { selector, state, ...timeoutOption(timeout) },
+  )
+
+const timeoutOption = (timeout: Duration.Input | undefined) =>
+  timeout === undefined ? {} : { timeout }
+
+const queryStateInstant = (query: Query, selector: string, state: "visible" | "hidden") =>
+  Effect.gen(function* () {
+    const element = yield* lookupStrict(query, selector)
+    if (element === undefined) return state === "hidden"
+    return state === "visible" ? isElementVisible(element) : !isElementVisible(element)
   })
+
+const evaluateElementState = (
+  element: Element,
+  state: "enabled" | "disabled" | "editable" | "checked",
+) => {
+  switch (state) {
+    case "enabled":
+      return !isDisabled(element)
+    case "disabled":
+      return isDisabled(element)
+    case "editable":
+      return isEditable(element)
+    case "checked":
+      return element instanceof HTMLInputElement && element.checked
+    default:
+      return state satisfies never
+  }
 }
 
 const allElements = (root: ParentNode) => [...root.querySelectorAll("*")]
