@@ -1,18 +1,113 @@
 #!/usr/bin/env node
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node"
-import { Console, Effect, FileSystem, Formatter, Path, Schema } from "effect"
-import { Argument, Command, Flag } from "effect/unstable/cli"
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { Console, Effect, FileSystem, Formatter, Path, Schema, Terminal } from "effect"
+import { Argument, Command, Flag, Prompt } from "effect/unstable/cli"
 import { HttpServer } from "effect/unstable/http"
-import open from "open"
+import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import os from "node:os"
+import open from "open"
 import packageJson from "../package.json" with { type: "json" }
-import { BrowserLauncher, browserSwitches } from "./lib/browser-launcher.ts"
-import { TxConfig, TxConfigSchema } from "./lib/config.ts"
 import { TiketLive } from "./layers.ts"
+import { BrowserLauncher, browserSwitches } from "./lib/browser-launcher.ts"
+import { PROFILE_TEMPLATE_DIRECTORY, TxConfig, TxConfigSchema } from "./lib/config.ts"
 
-const templateProfileDirectory = "template-draft"
+const templateCreateProfileDirectory = "Draft"
+
+const templateCreateCommand = Command.make(
+  "create",
+  {},
+  Effect.fn(
+    function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+      const { config, paths } = yield* TxConfig
+      const { templateDir } = paths
+      const tempUserDataDir = yield* fs.makeTempDirectoryScoped({
+        prefix: "tx-template-create-",
+      })
+      const profilePath = path.join(tempUserDataDir, templateCreateProfileDirectory)
+      const handle = yield* spawner.spawn(
+        ChildProcess.make(config.browserExecutable, [
+          `--user-data-dir=${tempUserDataDir}`,
+          `--profile-directory=${templateCreateProfileDirectory}`,
+          ...browserSwitches,
+        ]),
+      )
+
+      yield* Effect.logInfo("Log in, then close the browser when done")
+      yield* handle.exitCode
+
+      if (!(yield* fs.exists(profilePath))) {
+        yield* Effect.logWarning("No profile to save at", profilePath)
+        return
+      }
+
+      const save = yield* Prompt.run(
+        Prompt.confirm({
+          message: "Save as template?",
+          initial: false,
+        }),
+      ).pipe(Effect.catchIf(Terminal.isQuitError, () => Effect.succeed(false)))
+
+      if (!save) {
+        yield* Effect.logInfo("Template not saved")
+        return
+      }
+
+      if (yield* fs.exists(templateDir)) {
+        yield* Effect.logInfo("Replacing existing template at", templateDir)
+        yield* fs.remove(templateDir, { recursive: true, force: true })
+      }
+
+      yield* fs.copy(profilePath, templateDir)
+      yield* Effect.logInfo("Template saved at", templateDir)
+    },
+    Effect.provide(TxConfig.layer),
+    Effect.scoped,
+  ),
+).pipe(
+  Command.withDescription(
+    "Create a fresh template profile in a temp browser; save replaces any existing template",
+  ),
+)
+
+const templateUpdateCommand = Command.make(
+  "update",
+  {},
+  Effect.fn(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const { config, paths } = yield* TxConfig
+    const { userDataDir, templateDir } = paths
+
+    if (!(yield* fs.exists(templateDir))) {
+      return yield* Effect.die(
+        new Error(
+          `Template profile not found at ${templateDir}. Create one with: tx tiket template create`,
+        ),
+      )
+    }
+
+    const handle = yield* spawner.spawn(
+      ChildProcess.make(config.browserExecutable, [
+        `--user-data-dir=${userDataDir}`,
+        `--profile-directory=${PROFILE_TEMPLATE_DIRECTORY}`,
+        ...browserSwitches,
+      ]),
+    )
+
+    yield* Effect.logInfo("Update the template, then close the browser when done")
+    yield* handle.exitCode
+    yield* Effect.logInfo("Template updated at", templateDir)
+  }, Effect.provide(TxConfig.layer)),
+).pipe(Command.withDescription("Open the existing template profile to refresh login state"))
+
+const templateCommand = Command.make("template").pipe(
+  Command.withDescription("Manage the browser profile template"),
+  Command.withSubcommands([templateCreateCommand, templateUpdateCommand]),
+)
 
 const tiketStartCommand = Command.make(
   "start",
@@ -42,60 +137,6 @@ const tiketStartCommand = Command.make(
     Effect.scoped,
   ),
 ).pipe(Command.withDescription("Start tiket server and spawn browsers"))
-
-const templateCreateCommand = Command.make(
-  "create",
-  {},
-  Effect.fn(
-    function* () {
-      const fs = yield* FileSystem.FileSystem
-      const path = yield* Path.Path
-      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-      const { config, paths } = yield* TxConfig
-      const { userDataDir, templateDir } = paths
-      const profilePath = path.join(userDataDir, templateProfileDirectory)
-
-      if (yield* fs.exists(profilePath)) {
-        yield* fs.remove(profilePath, { recursive: true, force: true })
-      }
-
-      yield* Effect.acquireUseRelease(
-        spawner.spawn(
-          ChildProcess.make(config.browserExecutable, [
-            `--user-data-dir=${userDataDir}`,
-            `--profile-directory=${templateProfileDirectory}`,
-            ...browserSwitches,
-          ]),
-        ),
-        Effect.fn(function* (handle) {
-          yield* Effect.logInfo("Log in, then close the browser when done")
-          yield* handle.exitCode
-        }),
-        Effect.fn(function* () {
-          if (!(yield* fs.exists(profilePath))) {
-            yield* Effect.logWarning("No profile to save at", profilePath)
-            return
-          }
-
-          if (yield* fs.exists(templateDir)) {
-            yield* Effect.logInfo("Replacing existing template at", templateDir)
-            yield* fs.remove(templateDir, { recursive: true, force: true })
-          }
-
-          yield* fs.rename(profilePath, templateDir)
-          yield* Effect.logInfo("Template saved at", templateDir)
-        }, Effect.orDie),
-      )
-    },
-    Effect.provide(TxConfig.layer),
-    Effect.scoped,
-  ),
-).pipe(Command.withDescription("Create a template profile by logging in once"))
-
-const templateCommand = Command.make("template").pipe(
-  Command.withDescription("Manage the browser profile template"),
-  Command.withSubcommands([templateCreateCommand]),
-)
 
 const tiketCommand = Command.make("tiket").pipe(
   Command.withDescription("Tiket automation"),
