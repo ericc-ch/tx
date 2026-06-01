@@ -1,7 +1,7 @@
 import { Context, Effect, FileSystem, Layer, Path, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
-import { TxConfig } from "./config.ts"
+import { PROFILE_TEMPLATE_DIRECTORY, TxConfig } from "./config.ts"
 import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "../rpc/schema.ts"
 
 interface BrowserEntry {
@@ -30,9 +30,26 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
       const path = yield* Path.Path
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
       const { config, paths } = yield* TxConfig
-      const { configFilePath, userDataDir, templateDir } = paths
+      const { configFilePath } = paths
+      let { userDataDir, templateDir } = paths
       const browsers = new Map<string, BrowserEntry>()
       let nextBrowserIndex = 1
+
+      if (config.copyUserDataDirToTmp) {
+        const sourceUserDataDir = paths.userDataDir
+        const tmpUserDataDir = yield* fs.makeTempDirectory({ prefix: "tx-user-data-" })
+        yield* Effect.addFinalizer(() =>
+          fs.remove(tmpUserDataDir, { recursive: true, force: true }).pipe(Effect.ignore),
+        )
+        yield* fs.copy(sourceUserDataDir, tmpUserDataDir)
+        yield* Effect.logInfo(
+          "Copied user data dir to tmp for runtime:",
+          sourceUserDataDir,
+          tmpUserDataDir,
+        )
+        userDataDir = tmpUserDataDir
+        templateDir = path.join(tmpUserDataDir, PROFILE_TEMPLATE_DIRECTORY)
+      }
 
       if (config.browserExtensionPath.length === 0) {
         return yield* Effect.die(

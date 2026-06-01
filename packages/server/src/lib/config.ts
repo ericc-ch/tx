@@ -2,7 +2,7 @@ import envPaths from "env-paths"
 import { Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
 
 const CONFIG_FILE_NAME = "config.json"
-const PROFILE_TEMPLATE_DIRECTORY = "__profile-template"
+export const PROFILE_TEMPLATE_DIRECTORY = "__profile-template"
 const txEnvPaths = envPaths("tx")
 
 export const TxConfigSchema = Schema.Struct({
@@ -10,6 +10,7 @@ export const TxConfigSchema = Schema.Struct({
   browserExtensionPath: Schema.String,
   customerDataPath: Schema.String,
   userDataDir: Schema.optional(Schema.NonEmptyString),
+  copyUserDataDirToTmp: Schema.optional(Schema.Boolean),
   $schema: Schema.optional(Schema.String),
 })
 
