@@ -1,6 +1,6 @@
 import { Init } from "@/lib/init"
 import { RemoteLoggerLayer } from "@/lib/logger"
-import { Effect, Layer, Schema } from "effect"
+import { Effect, Layer, Option, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { RpcClient, RpcSerialization } from "effect/unstable/rpc"
 import { RpcClientDefect, RpcClientError } from "effect/unstable/rpc/RpcClientError"
@@ -65,7 +65,13 @@ export const registerRpcTunnel = Effect.gen(function* () {
       if (!Schema.is(ForwardMsg)(message)) return false
 
       return Effect.gen(function* () {
-        const { port } = yield* init.get()
+        const initPayload = yield* init.get()
+        if (Option.isNone(initPayload)) {
+          yield* Effect.logWarning("RPC tunnel skipped — extension init not loaded")
+          return
+        }
+
+        const { port } = initPayload.value
         const url = `http://localhost:${port}/rpc`
 
         const request = HttpClientRequest.post(url).pipe(

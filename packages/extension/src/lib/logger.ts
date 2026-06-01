@@ -10,7 +10,7 @@ const remoteLogEntry = Logger.make(({ logLevel, message }) => ({
 
 const remoteLogger = Effect.gen(function* () {
   const init = yield* Init
-  const initPayload = yield* init.getOption()
+  const initPayload = yield* init.get()
   if (Option.isNone(initPayload)) {
     return Logger.make(() => Effect.void)
   }

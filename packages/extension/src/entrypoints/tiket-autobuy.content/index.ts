@@ -17,7 +17,7 @@ type FlowStep = "routing" | "awaiting-order" | "done"
 
 const acquireCustomer = Effect.gen(function* () {
   const store = yield* CustomerStore
-  const existing = yield* store.getOption()
+  const existing = yield* store.get()
   if (Option.isSome(existing)) {
     yield* Effect.logDebug("Resuming claimed customer", existing.value.email)
     return
@@ -25,7 +25,11 @@ const acquireCustomer = Effect.gen(function* () {
 
   const client = yield* RpcClient.make(ServerRpcs)
   const init = yield* Init
-  const { browserId } = yield* init.get()
+  const initPayload = yield* init.get()
+  if (Option.isNone(initPayload)) {
+    return yield* Effect.die(new Error("Extension init not loaded"))
+  }
+  const { browserId } = initPayload.value
 
   let poolWasEmpty = false
 
@@ -119,7 +123,7 @@ const main = Effect.gen(function* () {
   const store = yield* CustomerStore
   const init = yield* Init
 
-  if (Option.isNone(yield* init.getOption())) {
+  if (Option.isNone(yield* init.get())) {
     yield* Effect.logWarning(
       "Extension init not loaded — launch this tab from `tx tiket start` (missing __init URL param)",
     )
@@ -128,7 +132,7 @@ const main = Effect.gen(function* () {
   while (true) {
     autobuyAttempt = 0
     yield* acquireCustomer
-    const customerEmail = (yield* store.getOption()).pipe(
+    const customerEmail = (yield* store.get()).pipe(
       Option.map((customer) => customer.email),
       Option.getOrElse(() => "unknown"),
     )
@@ -137,7 +141,7 @@ const main = Effect.gen(function* () {
       Effect.as(true),
       Effect.catch((cause) =>
         Effect.gen(function* () {
-          yield* store.clear()
+          yield* store.remove()
           yield* Effect.logWarning(
             "Customer wasted:",
             customerEmail,

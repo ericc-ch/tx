@@ -1,22 +1,7 @@
 import { Effect, Option, Schema } from "effect"
 import { storage } from "wxt/utils/storage"
 
-export const readItem = <S extends Schema.Top>(
-  key: `local:${string}`,
-  schema: S,
-  missingMessage: string,
-) =>
-  Effect.gen(function* () {
-    const value = yield* Effect.tryPromise(() => storage.getItem(key))
-    const stored = Option.fromNullishOr(value)
-    if (Option.isNone(stored)) {
-      return yield* Effect.die(new Error(missingMessage))
-    }
-
-    return yield* Schema.decodeUnknownEffect(schema)(stored.value).pipe(Effect.orDie)
-  })
-
-export const readItemOption = <S extends Schema.Top>(key: `local:${string}`, schema: S) =>
+const read = <S extends Schema.Top>(key: `local:${string}`, schema: S) =>
   Effect.gen(function* () {
     const value = yield* Effect.tryPromise(() => storage.getItem(key))
     const stored = Option.fromNullishOr(value)
@@ -28,8 +13,27 @@ export const readItemOption = <S extends Schema.Top>(key: `local:${string}`, sch
     )
   })
 
-export const writeItem = (key: `local:${string}`, value: unknown) =>
+const write = (key: `local:${string}`, value: unknown) =>
   Effect.tryPromise(() => storage.setItem(key, value)).pipe(Effect.orDie)
 
-export const removeItem = (key: `local:${string}`) =>
+const remove = (key: `local:${string}`) =>
   Effect.tryPromise(() => storage.removeItem(key)).pipe(Effect.orDie)
+
+export const makePersistedStore = <S extends Schema.Top>(config: {
+  key: `local:${string}`
+  schema: S
+}) => {
+  const { key, schema } = config
+
+  return {
+    get: Effect.fn(function* () {
+      return yield* read(key, schema)
+    }),
+    set: Effect.fn(function* (value: Schema.Schema.Type<S>) {
+      yield* write(key, value)
+    }),
+    remove: Effect.fn(function* () {
+      yield* remove(key)
+    }),
+  }
+}

@@ -1,24 +1,15 @@
 import { INIT_PAYLOAD_PARAM, InitPayload, InitPayloadFromUrlParam } from "@tx/server/schema"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import { browser } from "wxt/browser"
-import { readItem, readItemOption, writeItem } from "./storage"
+import { makePersistedStore } from "./storage"
 
-const INIT_STORAGE_KEY = "local:init"
+const initStore = makePersistedStore({ key: "local:init", schema: InitPayload })
 
 export class Init extends Context.Service<Init>()("@tx/extension/Init", {
-  make: Effect.sync(() => {
-    return {
-      get: Effect.fn(function* () {
-        return yield* readItem(INIT_STORAGE_KEY, InitPayload, "Extension init not loaded")
-      }),
-      getOption: Effect.fn(function* () {
-        return yield* readItemOption(INIT_STORAGE_KEY, InitPayload)
-      }),
-      set: Effect.fn(function* (payload: typeof InitPayload.Type) {
-        yield* writeItem(INIT_STORAGE_KEY, payload)
-      }),
-    }
-  }),
+  make: Effect.sync(() => ({
+    get: initStore.get,
+    set: initStore.set,
+  })),
 }) {
   static layer = Layer.effect(this, this.make)
 }

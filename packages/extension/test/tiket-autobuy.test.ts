@@ -23,13 +23,10 @@ const customerStoreLayer = (customer = defaultCustomer) =>
     CustomerStore,
     CustomerStore.of({
       get: Effect.fn(function* () {
-        return yield* Effect.succeed(customer)
-      }),
-      getOption: Effect.fn(function* () {
         return yield* Effect.succeed(Option.some(customer))
       }),
       set: Effect.fn(function* () {}),
-      clear: Effect.fn(function* () {}),
+      remove: Effect.fn(function* () {}),
     }),
   )
 

@@ -1,6 +1,6 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
-import { Duration, Effect, Schedule } from "effect"
+import { Duration, Effect, Option, Schedule } from "effect"
 import { NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
@@ -17,7 +17,11 @@ const quantitySettleSchedule = Schedule.spaced("50 millis").pipe(
 
 export const runPackages = Effect.gen(function* () {
   const store = yield* CustomerStore
-  const customer = yield* store.get()
+  const customerOption = yield* store.get()
+  if (Option.isNone(customerOption)) {
+    return yield* Effect.die(new Error("No customer in storage"))
+  }
+  const customer = customerOption.value
   const buyCount = customer.ticketCount
   const categories =
     customer.categories.length > 0 ? customer.categories : DEFAULT_CATEGORY_PRIORITY
