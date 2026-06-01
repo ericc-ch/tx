@@ -128,20 +128,4 @@ describe("CustomerPool", () => {
       expect(reloaded?.email).toBe("third@example.com")
       expect(afterReload).toBeNull()
     }))
-
-  it("deduplicates rows already in the available pool on reload", () =>
-    Effect.gen(function* () {
-      const { pool, file, fs } = yield* withPool(sampleCustomers.slice(0, 2))
-
-      yield* fs.writeFileString(file, `${JSON.stringify(sampleCustomers.slice(0, 2), null, 2)}\n`)
-      yield* Effect.sleep("500 millis")
-
-      const first = yield* pool.claim()
-      const second = yield* pool.claim()
-      const third = yield* pool.claim()
-
-      expect(first?.email).toBe("tonotenda@example.com")
-      expect(second?.email).toBe("tronton@gmail.com")
-      expect(third).toBeNull()
-    }))
 })

@@ -1,6 +1,6 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
-import { Duration, Effect } from "effect"
+import { Duration, Effect, Schedule } from "effect"
 import { NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
@@ -10,6 +10,10 @@ export const ORDER_BUTTON_TEXT = /^(pesan|book)$/i
 export const SOLD_OUT_TEXT = /^(terjual habis|sold out)$/i
 
 const DEFAULT_CATEGORY_PRIORITY = ["cat 6", "last forever fan", "festival", "cat 1"]
+
+const quantitySettleSchedule = Schedule.spaced("50 millis").pipe(
+  Schedule.both(Schedule.during("2 seconds")),
+)
 
 export const runPackages = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -59,6 +63,15 @@ export const runPackages = Effect.gen(function* () {
   )
 
   const sheet = page.getByTestId("bottom-sheet-body").filter({ visible: true })
+  const closeSheet = Effect.gen(function* () {
+    yield* page
+      .getByTestId("bottom-sheet-header")
+      .filter({ visible: true })
+      .getByRole("button", { disabled: false })
+      .first()
+      .click({ timeout: Duration.infinity })
+    yield* sheet.waitFor({ state: "hidden", timeout: Duration.infinity })
+  })
 
   for (const priority of categories) {
     const match = available.find((pkg) => pkg.title.toLowerCase().includes(priority.toLowerCase()))
@@ -88,6 +101,7 @@ export const runPackages = Effect.gen(function* () {
           "Presale code required but no membership code configured for",
           match.title,
         )
+        yield* closeSheet
         continue
       }
 
@@ -106,27 +120,41 @@ export const runPackages = Effect.gen(function* () {
     const decrementButton = quantityEditor.locator('button[type="button"]').nth(0)
     const incrementButton = quantityEditor.locator('button[type="button"]').nth(1)
 
-    for (let attempts = 0; attempts < buyCount; attempts++) {
-      const current = Number.parseInt(yield* quantityInput.inputValue(), 10)
-      if (current === buyCount) break
-      if (Number.isNaN(current)) {
-        yield* Effect.logInfo("Quantity input is invalid for", match.title)
-        break
+    const quantity = yield* Effect.gen(function* () {
+      let value = Number.parseInt(yield* quantityInput.inputValue(), 10)
+
+      while (value !== buyCount) {
+        if (Number.isNaN(value)) {
+          yield* Effect.logInfo("Quantity input is invalid for", match.title)
+          break
+        }
+
+        const before = value
+        const stepButton = value < buyCount ? incrementButton : decrementButton
+
+        yield* stepButton.click({ timeout: Duration.infinity })
+
+        value = yield* Effect.gen(function* () {
+          const quantity = Number.parseInt(yield* quantityInput.inputValue(), 10)
+          const buttonDisabled = yield* stepButton.isDisabled()
+          return { quantity, buttonDisabled } as const
+        }).pipe(
+          Effect.repeat({
+            until: ({ quantity, buttonDisabled }) =>
+              quantity !== before || quantity === buyCount || buttonDisabled,
+            schedule: quantitySettleSchedule,
+          }),
+          Effect.map(({ quantity }) => quantity),
+        )
+
+        if (value === before) {
+          yield* Effect.logInfo("Quantity stuck at", before, "for", match.title)
+          break
+        }
       }
 
-      if (current < buyCount) {
-        yield* incrementButton.click({ timeout: Duration.infinity })
-      } else {
-        yield* decrementButton.click({ timeout: Duration.infinity })
-      }
-
-      yield* Effect.sleep(Duration.millis(10))
-      const next = Number.parseInt(yield* quantityInput.inputValue(), 10)
-
-      if (next === current) break
-    }
-
-    const quantity = Number.parseInt(yield* quantityInput.inputValue(), 10)
+      return value
+    })
     if (quantity !== buyCount) {
       yield* Effect.logInfo(
         "Quantity",
@@ -136,6 +164,7 @@ export const runPackages = Effect.gen(function* () {
         ". Found",
         quantity,
       )
+      yield* closeSheet
       continue
     }
 

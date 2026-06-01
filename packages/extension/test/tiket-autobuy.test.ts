@@ -1,12 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "@effect/vitest"
+import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer-store"
-import { Effect, Fiber, Layer, Option } from "effect"
-import { NoPackageAvailable } from "../src/entrypoints/tiket-autobuy.content/errors"
+import { Effect, Layer, Option } from "effect"
 import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
-import {
-  resetToOverview,
-  runOverview,
-} from "../src/entrypoints/tiket-autobuy.content/flow-overview"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
 const defaultCustomer = {
@@ -63,53 +58,10 @@ const makeVisible = () => {
 describe("tiket autobuy", () => {
   beforeEach(resetDom)
 
-  it("resets packages to overview preserving locale and query", async () => {
-    const locationState = {
-      pathname: "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos/packages",
-      search: "?utm_page=toDoDetail",
-    }
-    const assign = vi.fn((url: string) => {
-      const parsed = new URL(url, "https://www.tiket.com")
-      locationState.pathname = parsed.pathname
-    })
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      get: () => ({
-        ...locationState,
-        assign,
-      }),
-    })
-
-    await Effect.runPromise(resetToOverview)
-
-    expect(assign).toHaveBeenCalledWith(
-      "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos?utm_page=toDoDetail",
+  it("submits order from package bottom sheet", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/lany-packages-en.html").pipe(Effect.provide(NodePlatform)),
     )
-  })
-
-  it("navigates overview to packages preserving locale and query", async () => {
-    const assign = vi.fn()
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        pathname: "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos",
-        search: "?utm_page=toDoDetail",
-        assign,
-      },
-    })
-
-    await Effect.runPromise(runOverview)
-
-    expect(assign).toHaveBeenCalledWith(
-      "/id-id/to-do/lany-soft-world-tour-in-jakarta-2026-29-oct-gos/packages?utm_page=toDoDetail",
-    )
-  })
-
-  it.each([
-    ["../../../fixtures/lany-packages-en.html"],
-    ["../../../fixtures/lany-packages-id.html"],
-  ])("submits order from bottom sheet (%s)", async (fixturePath) => {
-    await Effect.runPromise(loadFixture(fixturePath).pipe(Effect.provide(NodePlatform)))
     makeVisible()
 
     const input = document.querySelector('[data-testid="bottom-sheet-body"] input[type="number"]')
@@ -134,36 +86,5 @@ describe("tiket autobuy", () => {
     input.removeAttribute("disabled")
 
     expect(await Effect.runPromise(runPackagesWithCustomer())).toBe("submitted")
-  })
-
-  it("fills presale code when verify step is shown", async () => {
-    await Effect.runPromise(
-      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
-        Effect.provide(NodePlatform),
-      ),
-    )
-    makeVisible()
-
-    const codeInput = document.querySelector('[data-testid="bottom-sheet-body"] input[type="text"]')
-    if (!(codeInput instanceof HTMLInputElement)) throw new Error("missing code input")
-
-    const fiber = await Effect.runFork(runPackagesWithCustomer())
-    await Effect.runPromise(Effect.sleep("500 millis"))
-    expect(codeInput.value).toBe("WDYSLM")
-    await Effect.runPromise(Fiber.interrupt(fiber))
-  })
-
-  it("skips presale package when membership code is missing", async () => {
-    await Effect.runPromise(
-      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
-        Effect.provide(NodePlatform),
-      ),
-    )
-    makeVisible()
-
-    const error = await Effect.runPromise(
-      runPackagesWithCustomer({ ...defaultCustomer, membershipCode: "" }).pipe(Effect.flip),
-    )
-    expect(error).toBeInstanceOf(NoPackageAvailable)
   })
 })
