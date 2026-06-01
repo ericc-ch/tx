@@ -5,15 +5,20 @@ import { ServerRpcs } from "./schema.ts"
 export const RpcHandlers = ServerRpcs.toLayer(
   Effect.gen(function* () {
     const pool = yield* CustomerPool
+    const poolEmptyLoggedForBrowser = new Set<string>()
 
     return ServerRpcs.of({
       ClaimCustomer: ({ browserId }) =>
         Effect.gen(function* () {
           const customer = yield* pool.claim()
           if (!customer) {
-            yield* Effect.logInfo("Customer pool empty for browser", browserId)
+            if (!poolEmptyLoggedForBrowser.has(browserId)) {
+              poolEmptyLoggedForBrowser.add(browserId)
+              yield* Effect.logInfo("Customer pool empty", browserId)
+            }
             return { empty: true as const }
           }
+          poolEmptyLoggedForBrowser.delete(browserId)
           yield* Effect.logInfo("Browser", browserId, "claimed customer", customer.email)
           return { customer }
         }),

@@ -42,7 +42,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
           fs.remove(tmpUserDataDir, { recursive: true, force: true }).pipe(Effect.ignore),
         )
         yield* fs.copy(sourceUserDataDir, tmpUserDataDir)
-        yield* Effect.logInfo(
+        yield* Effect.logDebug(
           "Copied user data dir to tmp for runtime:",
           sourceUserDataDir,
           tmpUserDataDir,
@@ -86,7 +86,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
 
         const profilePath = path.join(userDataDir, browserId)
         yield* fs.copy(templateDir, profilePath)
-        yield* Effect.logInfo(`Profile created for ${browserId} at`, profilePath)
+        yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
 
         const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({ browserId, port })
 
@@ -107,7 +107,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
               browsers.delete(browserId)
             })
             yield* fs.remove(profilePath, { recursive: true, force: true })
-            yield* Effect.logInfo(`Profile removed for ${browserId}`)
+            yield* Effect.logDebug(`Profile removed for ${browserId}`)
           }, Effect.orDie),
         )
 
@@ -115,7 +115,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
         yield* Effect.sync(() => {
           browsers.set(browserId, entry)
         })
-        yield* Effect.logInfo(`Browser spawned ${browserId}`, entry)
+        yield* Effect.logDebug(`Browser spawned ${browserId}`, entry)
 
         return browserId
       })

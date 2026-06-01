@@ -43,7 +43,12 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
     yield* Effect.logInfo("Customer pool loaded", initial.length, "rows from", dataPath)
 
     const reload = Effect.fn(function* () {
-      const rows = yield* loadFile().pipe(Effect.option)
+      const rows = yield* loadFile().pipe(
+        Effect.tapError((cause) =>
+          Effect.logWarning("Customer pool reload failed", dataPath, cause),
+        ),
+        Effect.option,
+      )
       if (Option.isNone(rows)) return
 
       const added = yield* SynchronizedRef.modify(ref, (state) => {
@@ -61,8 +66,8 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
         return [newRows.length, next] as const
       })
 
-      if (added > 0) yield* Effect.logInfo("Customer pool reload added", added, "rows")
-      else yield* Effect.logWarning("No new customer data loaded")
+      if (added > 0) yield* Effect.logInfo("Customer pool reload added", added, "rows from", dataPath)
+      else yield* Effect.logDebug("No new customer data loaded")
     })
 
     yield* Effect.forkScoped(

@@ -4,7 +4,7 @@ import { BrowserRuntime } from "@effect/platform-browser"
 import { Effect } from "effect"
 
 const main = Effect.gen(function* () {
-  yield* Effect.logInfo("Background service worker started")
+  yield* Effect.logDebug("Background service worker started")
   yield* registerInitCapture
   yield* registerRpcTunnel
 })

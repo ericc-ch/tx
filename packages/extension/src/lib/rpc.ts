@@ -72,7 +72,10 @@ export const registerRpcTunnel = Effect.gen(function* () {
           HttpClientRequest.bodyText(message.message, "application/ndjson"),
         )
 
-        return yield* http.execute(request).pipe(Effect.flatMap((res) => res.text))
+        return yield* http.execute(request).pipe(
+          Effect.flatMap((res) => res.text),
+          Effect.tapError((error) => Effect.logWarning("RPC tunnel failed", url, "—", error)),
+        )
       }).pipe(Effect.runPromise)
     })
   })

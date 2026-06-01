@@ -54,10 +54,10 @@ export const runPackages = Effect.gen(function* () {
 
   if (available.length === 0) {
     yield* Effect.logWarning("No packages available")
-    return yield* new NoPackageAvailable()
+    return yield* new NoPackageAvailable({ reason: "no-inventory" })
   }
 
-  yield* Effect.logInfo(
+  yield* Effect.logDebug(
     "Available packages",
     available.map((p) => p.title),
   )
@@ -80,10 +80,10 @@ export const runPackages = Effect.gen(function* () {
       continue
     }
 
-    yield* Effect.logInfo("Package found for", priority, match.title)
+    yield* Effect.logDebug("Package found for", priority, match.title)
 
     yield* match.selectButton.click({ timeout: Duration.infinity })
-    yield* Effect.logInfo("Opening", match.title)
+    yield* Effect.logDebug("Opening", match.title)
     yield* sheet.waitFor({ state: "visible", timeout: Duration.infinity })
 
     const verifyButton = sheet
@@ -97,7 +97,7 @@ export const runPackages = Effect.gen(function* () {
       )
     if (needsPresale) {
       if (!customer.membershipCode) {
-        yield* Effect.logInfo(
+        yield* Effect.logDebug(
           "Presale code required but no membership code configured for",
           match.title,
         )
@@ -105,7 +105,7 @@ export const runPackages = Effect.gen(function* () {
         continue
       }
 
-      yield* Effect.logInfo("Verifying presale code for", match.title)
+      yield* Effect.logDebug("Verifying presale code for", match.title)
       const codeInput = sheet.locator('input[type="text"]').filter({ visible: true }).first()
       yield* codeInput.fill(customer.membershipCode, { timeout: Duration.infinity })
       yield* verifyButton.click({ timeout: Duration.infinity })
@@ -125,7 +125,7 @@ export const runPackages = Effect.gen(function* () {
 
       while (value !== buyCount) {
         if (Number.isNaN(value)) {
-          yield* Effect.logInfo("Quantity input is invalid for", match.title)
+          yield* Effect.logDebug("Quantity input is invalid for", match.title)
           break
         }
 
@@ -148,7 +148,7 @@ export const runPackages = Effect.gen(function* () {
         )
 
         if (value === before) {
-          yield* Effect.logInfo("Quantity stuck at", before, "for", match.title)
+          yield* Effect.logDebug("Quantity stuck at", before, "for", match.title)
           break
         }
       }
@@ -156,7 +156,7 @@ export const runPackages = Effect.gen(function* () {
       return value
     })
     if (quantity !== buyCount) {
-      yield* Effect.logInfo(
+      yield* Effect.logDebug(
         "Quantity",
         buyCount,
         "not available for",
@@ -172,10 +172,10 @@ export const runPackages = Effect.gen(function* () {
       .getByRole("button", { name: ORDER_BUTTON_TEXT, disabled: false })
       .first()
       .click({ timeout: Duration.infinity })
-    yield* Effect.logInfo("Ordered", buyCount, "from", match.title)
+    yield* Effect.logInfo("Ordered", buyCount, "from", match.title, "for", customer.email)
     return "submitted" as const
   }
 
   yield* Effect.logDebug("No priority package available, exiting")
-  return yield* new NoPackageAvailable()
+  return yield* new NoPackageAvailable({ reason: "no-matching-category" })
 })

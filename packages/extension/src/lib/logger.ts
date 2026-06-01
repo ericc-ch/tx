@@ -1,6 +1,6 @@
 import { Init } from "@/lib/init"
 import { ServerRpcs } from "@tx/server/schema"
-import { Array, Console, Context, Duration, Effect, Layer, Logger, References } from "effect"
+import { Array, Context, Duration, Effect, Layer, Logger, Option, References } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
 
 const remoteLogEntry = Logger.make(({ logLevel, message }) => ({
@@ -9,13 +9,24 @@ const remoteLogEntry = Logger.make(({ logLevel, message }) => ({
 }))
 
 const remoteLogger = Effect.gen(function* () {
-  const client = yield* RpcClient.make(ServerRpcs)
   const init = yield* Init
-  const { browserId } = yield* init.get()
+  const initPayload = yield* init.getOption()
+  if (Option.isNone(initPayload)) {
+    return Logger.make(() => Effect.void)
+  }
+
+  const client = yield* RpcClient.make(ServerRpcs)
+  const { browserId } = initPayload.value
 
   return yield* Logger.batched(remoteLogEntry, {
     window: Duration.seconds(1),
-    flush: (entries) => client.PushLogs({ browserId, entries }).pipe(Effect.catch(Console.error)),
+    flush: (entries) =>
+      client.PushLogs({ browserId, entries }).pipe(
+        Effect.tapError((error) =>
+          Effect.logWarning("PushLogs failed for", browserId, "—", error),
+        ),
+        Effect.catch(() => Effect.void),
+      ),
   })
 })
 

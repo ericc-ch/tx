@@ -52,12 +52,12 @@ const templateCreateCommand = Command.make(
       ).pipe(Effect.catchIf(Terminal.isQuitError, () => Effect.succeed(false)))
 
       if (!save) {
-        yield* Effect.logInfo("Template not saved")
+        yield* Effect.logDebug("Template not saved")
         return
       }
 
       if (yield* fs.exists(templateDir)) {
-        yield* Effect.logInfo("Replacing existing template at", templateDir)
+        yield* Effect.logDebug("Replacing existing template at", templateDir)
         yield* fs.remove(templateDir, { recursive: true, force: true })
       }
 
