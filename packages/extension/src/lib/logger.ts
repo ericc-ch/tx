@@ -19,7 +19,7 @@ const remoteLogger = Effect.gen(function* () {
   const { browserId } = initPayload.value
 
   return yield* Logger.batched(remoteLogEntry, {
-    window: Duration.seconds(1),
+    window: Duration.seconds(2),
     flush: (entries) =>
       client.PushLogs({ browserId, entries }).pipe(
         Effect.tapError((error) => Effect.logWarning("PushLogs failed for", browserId, "—", error)),

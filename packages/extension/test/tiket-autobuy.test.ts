@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer-store"
-import { Effect, Fiber, Layer, Option } from "effect"
+import { Effect, Fiber, Layer } from "effect"
 import { runOrder } from "../src/entrypoints/tiket-autobuy.content/flow-order"
 import { runPayment } from "../src/entrypoints/tiket-autobuy.content/flow-payment"
 import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
+import { StepWait } from "../src/entrypoints/tiket-autobuy.content/step-wait"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
 const defaultCustomer = {
@@ -34,26 +35,17 @@ const orderCustomer = {
   paymentMethod: "BCA Virtual Account",
 }
 
-const customerStoreLayer = (customer = defaultCustomer) =>
-  Layer.succeed(
-    CustomerStore,
-    CustomerStore.of({
-      get: Effect.fn(function* () {
-        return yield* Effect.succeed(Option.some(customer))
-      }),
-      set: Effect.fn(function* () {}),
-      remove: Effect.fn(function* () {}),
-    }),
-  )
+const flowLayers = (customer = defaultCustomer) =>
+  Layer.mergeAll(CustomerStore.testLayer(customer), StepWait.testLayer)
 
 const runPackagesWithCustomer = (customer = defaultCustomer) =>
-  runPackages.pipe(Effect.provide(customerStoreLayer(customer)))
+  runPackages.pipe(Effect.provide(flowLayers(customer)))
 
 const runOrderWithCustomer = (customer = orderCustomer) =>
-  runOrder.pipe(Effect.provide(customerStoreLayer(customer)))
+  runOrder.pipe(Effect.provide(flowLayers(customer)))
 
 const runPaymentWithCustomer = (customer = orderCustomer) =>
-  runPayment.pipe(Effect.provide(customerStoreLayer(customer)))
+  runPayment.pipe(Effect.provide(flowLayers(customer)))
 
 const makeVisible = () => {
   for (const element of document.querySelectorAll("*")) {
@@ -191,7 +183,7 @@ describe("tiket autobuy", () => {
     input.value = "6"
     input.removeAttribute("disabled")
 
-    expect(await Effect.runPromise(runPackagesWithCustomer())).toBe("submitted")
+    await Effect.runPromise(runPackagesWithCustomer())
   })
 
   it("submits order from post-verify presale sheet", async () => {
@@ -207,7 +199,7 @@ describe("tiket autobuy", () => {
     input.value = "6"
     input.removeAttribute("disabled")
 
-    expect(await Effect.runPromise(runPackagesWithCustomer())).toBe("submitted")
+    await Effect.runPromise(runPackagesWithCustomer())
   })
 
   it("fills presale code on presale page", async () => {
@@ -235,7 +227,7 @@ describe("tiket autobuy", () => {
     )
     wireBookingFormSheet()
 
-    expect(await Effect.runPromise(runOrderWithCustomer())).toBe("submitted")
+    await Effect.runPromise(runOrderWithCustomer())
 
     const countryInput = document.querySelector("#countryregion-of-residence")
     const contactEmail = document.querySelector('[data-testid="contact-detail-card"] #email-address')
@@ -261,7 +253,7 @@ describe("tiket autobuy", () => {
     )
     wirePaymentPage()
 
-    expect(await Effect.runPromise(runPaymentWithCustomer())).toBe("submitted")
+    await Effect.runPromise(runPaymentWithCustomer())
 
     const bcaRadio = [...document.querySelectorAll('[data-testid="payment-method"] input[type="radio"]')].find(
       (radio) =>

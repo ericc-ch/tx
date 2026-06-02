@@ -1,7 +1,8 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
-import { Effect, Option, Schedule } from "effect"
+import { Effect, Schedule } from "effect"
 import { NoPackageAvailable } from "./errors"
+import { waitForNextPage } from "./step-wait"
 
 export const OPEN_SHEET_BUTTON_TEXT =
   /^(pilih|select|pilih tiket|select ticket|verifikasi kode|verify code)$/i
@@ -18,11 +19,7 @@ const quantitySettleSchedule = Schedule.spaced("50 millis").pipe(
 
 export const runPackages = Effect.gen(function* () {
   const store = yield* CustomerStore
-  const customerOption = yield* store.get()
-  if (Option.isNone(customerOption)) {
-    return yield* Effect.die(new Error("No customer in storage"))
-  }
-  const customer = customerOption.value
+  const customer = yield* store.require()
   const buyCount = customer.ticketCount
   const categories =
     customer.categories.length > 0 ? customer.categories : DEFAULT_CATEGORY_PRIORITY
@@ -183,7 +180,9 @@ export const runPackages = Effect.gen(function* () {
       .first()
       .click()
     yield* Effect.logInfo("Ordered", buyCount, "from", match.title, "for", customer.email)
-    return "submitted" as const
+
+    yield* waitForNextPage("order")
+    return
   }
 
   yield* Effect.logDebug("No priority package available, exiting")

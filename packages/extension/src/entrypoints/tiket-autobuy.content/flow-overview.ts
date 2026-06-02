@@ -9,7 +9,7 @@ export const resetToOverview = Effect.gen(function* () {
   yield* Effect.logDebug("Resetting to overview", url)
 
   while (pageKind(location) !== "overview") {
-    yield* Effect.sleep(Duration.millis(10))
+    yield* Effect.sleep(Duration.millis(100))
   }
 })
 

@@ -1,8 +1,8 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Page } from "@/lib/playwlite"
-import { Effect, Option } from "effect"
+import { Effect } from "effect"
+import { waitForNextPage } from "./step-wait"
 
-export const SAME_AS_CONTACT_TEXT = /same as contact details|sama dengan detail kontak/i
 export const SAVE_BUTTON_TEXT = /^(save|simpan)$/i
 export const CONTINUE_PAYMENT_TEXT = /continue to payment|lanjut(?:kan)? ke pembayaran/i
 export const COUNTRY_SHEET_TEXT = /country\/region of residence/i
@@ -13,11 +13,7 @@ const salutationForGender = (gender: string) => (gender === "male" ? "Mr" : "Ms"
 
 export const runOrder = Effect.gen(function* () {
   const store = yield* CustomerStore
-  const customerOption = yield* store.get()
-  if (Option.isNone(customerOption)) {
-    return yield* Effect.die(new Error("No customer in storage"))
-  }
-  const customer = customerOption.value
+  const customer = yield* store.require()
   const page = new Page(document)
 
   const contactCard = page.getByTestId("contact-detail-card")
@@ -55,5 +51,6 @@ export const runOrder = Effect.gen(function* () {
 
   yield* page.getByRole("button", { name: CONTINUE_PAYMENT_TEXT }).click({ force: true })
   yield* Effect.logInfo("Continued to payment for", customer.email, customer.paymentMethod)
-  return "submitted" as const
+
+  yield* waitForNextPage("payment")
 })

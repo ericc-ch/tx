@@ -14,7 +14,7 @@ const RpcLive = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol:
   Layer.provideMerge(RpcSerialization.layerNdjson),
 )
 
-export const ServerLive = HttpRouter.serve(RpcLive).pipe(
+export const ServerLive = HttpRouter.serve(RpcLive, { disableLogger: true }).pipe(
   Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port: 0 })),
 )
 
