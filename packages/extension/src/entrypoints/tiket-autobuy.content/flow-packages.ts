@@ -5,6 +5,7 @@ import { NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
   /^(pilih|select|pilih tiket|select ticket|verifikasi kode|verify code)$/i
+export const PRESALE_CARD_BUTTON_TEXT = /^(verifikasi kode|verify code)$/i
 export const VERIFY_BUTTON_TEXT = /^(verifikasi kodemu|verify your code)$/i
 export const ORDER_BUTTON_TEXT = /^(pesan|book)$/i
 export const SOLD_OUT_TEXT = /^(terjual habis|sold out)$/i
@@ -29,15 +30,26 @@ export const runPackages = Effect.gen(function* () {
   const page = new Page(document)
 
   // Wait for the first package card to be visible, otherwise available packages resolve to 0
-  yield* page
-    .getByTestId("package-card")
-    .filter({ visible: true })
-    .first()
-    .waitFor({ state: "visible", timeout: Duration.infinity })
-
   const cards = page.getByTestId("package-card").filter({ visible: true })
+  yield* cards.first().waitFor({ state: "visible", timeout: Duration.infinity })
+
   const count = yield* cards.count()
-  const available: Array<{ title: string; card: Locator; selectButton: Locator }> = []
+
+  const presaleButton = cards
+    .first()
+    .getByRole("button", { name: PRESALE_CARD_BUTTON_TEXT, disabled: false })
+    .first()
+
+  let isPresalePage = false
+  if ((yield* presaleButton.count()) > 0) {
+    isPresalePage = true
+  }
+
+  const available: Array<{
+    title: string
+    card: Locator
+    selectButton: Locator
+  }> = []
 
   for (let index = 0; index < count; index++) {
     const card = cards.nth(index)
@@ -90,16 +102,7 @@ export const runPackages = Effect.gen(function* () {
     yield* Effect.logDebug("Opening", match.title)
     yield* sheet.waitFor({ state: "visible", timeout: Duration.infinity })
 
-    const verifyButton = sheet
-      .getByRole("button", { name: VERIFY_BUTTON_TEXT, disabled: false })
-      .first()
-    const needsPresale = yield* verifyButton
-      .waitFor({ state: "visible", timeout: Duration.seconds(1) })
-      .pipe(
-        Effect.as(true),
-        Effect.catchTag("LocatorTimeout", () => Effect.succeed(false)),
-      )
-    if (needsPresale) {
+    if (isPresalePage) {
       if (!customer.membershipCode) {
         yield* Effect.logDebug(
           "Presale code required but no membership code configured for",
@@ -112,7 +115,10 @@ export const runPackages = Effect.gen(function* () {
       yield* Effect.logDebug("Verifying presale code for", match.title)
       const codeInput = sheet.locator('input[type="text"]').filter({ visible: true }).first()
       yield* codeInput.fill(customer.membershipCode, { timeout: Duration.infinity })
-      yield* verifyButton.click({ timeout: Duration.infinity })
+      yield* sheet
+        .getByRole("button", { name: VERIFY_BUTTON_TEXT, disabled: false })
+        .first()
+        .click({ timeout: Duration.infinity })
     }
 
     const quantityInput = sheet.locator('input[type="number"]').filter({ visible: true }).first()

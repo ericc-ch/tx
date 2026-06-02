@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer-store"
-import { Effect, Layer, Option } from "effect"
+import { Effect, Fiber, Layer, Option } from "effect"
 import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
@@ -83,5 +83,24 @@ describe("tiket autobuy", () => {
     input.removeAttribute("disabled")
 
     expect(await Effect.runPromise(runPackagesWithCustomer())).toBe("submitted")
+  })
+
+  it("fills presale code on presale page", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    makeVisible()
+
+    const customer = { ...defaultCustomer, categories: ["cat 1"] }
+    const fiber = Effect.runFork(runPackagesWithCustomer(customer))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    const input = document.querySelector('[data-testid="bottom-sheet-body"] input[type="text"]')
+    if (!(input instanceof HTMLInputElement)) throw new Error("missing presale code input")
+    expect(input.value).toBe(customer.membershipCode)
+
+    await Effect.runPromise(Fiber.interrupt(fiber))
   })
 })
