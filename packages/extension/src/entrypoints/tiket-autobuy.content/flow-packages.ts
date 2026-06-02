@@ -1,6 +1,6 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
-import { Duration, Effect, Option, Schedule } from "effect"
+import { Effect, Option, Schedule } from "effect"
 import { NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
@@ -31,7 +31,7 @@ export const runPackages = Effect.gen(function* () {
 
   // Wait for the first package card to be visible, otherwise available packages resolve to 0
   const cards = page.getByTestId("package-card").filter({ visible: true })
-  yield* cards.first().waitFor({ state: "visible", timeout: Duration.infinity })
+  yield* cards.first().waitFor({ state: "visible" })
 
   const count = yield* cards.count()
 
@@ -85,8 +85,8 @@ export const runPackages = Effect.gen(function* () {
       .filter({ visible: true })
       .getByRole("button", { disabled: false })
       .first()
-      .click({ timeout: Duration.infinity })
-    yield* sheet.waitFor({ state: "hidden", timeout: Duration.infinity })
+      .click()
+    yield* sheet.waitFor({ state: "hidden" })
   })
 
   for (const priority of categories) {
@@ -98,9 +98,9 @@ export const runPackages = Effect.gen(function* () {
 
     yield* Effect.logDebug("Package found for", priority, match.title)
 
-    yield* match.selectButton.click({ timeout: Duration.infinity })
+    yield* match.selectButton.click()
     yield* Effect.logDebug("Opening", match.title)
-    yield* sheet.waitFor({ state: "visible", timeout: Duration.infinity })
+    yield* sheet.waitFor({ state: "visible" })
 
     if (isPresalePage) {
       if (!customer.membershipCode) {
@@ -114,11 +114,11 @@ export const runPackages = Effect.gen(function* () {
 
       yield* Effect.logDebug("Verifying presale code for", match.title)
       const codeInput = sheet.locator('input[type="text"]').filter({ visible: true }).first()
-      yield* codeInput.fill(customer.membershipCode, { timeout: Duration.infinity })
+      yield* codeInput.fill(customer.membershipCode)
       yield* sheet
         .getByRole("button", { name: VERIFY_BUTTON_TEXT, disabled: false })
         .first()
-        .click({ timeout: Duration.infinity })
+        .click()
     }
 
     const quantityInput = sheet.locator('input[type="number"]').filter({ visible: true }).first()
@@ -142,7 +142,7 @@ export const runPackages = Effect.gen(function* () {
         const before = value
         const stepButton = value < buyCount ? incrementButton : decrementButton
 
-        yield* stepButton.click({ timeout: Duration.infinity })
+        yield* stepButton.click()
 
         value = yield* Effect.gen(function* () {
           const quantity = Number.parseInt(yield* quantityInput.inputValue(), 10)
@@ -181,7 +181,7 @@ export const runPackages = Effect.gen(function* () {
     yield* sheet
       .getByRole("button", { name: ORDER_BUTTON_TEXT, disabled: false })
       .first()
-      .click({ timeout: Duration.infinity })
+      .click()
     yield* Effect.logInfo("Ordered", buyCount, "from", match.title, "for", customer.email)
     return "submitted" as const
   }

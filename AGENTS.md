@@ -6,8 +6,7 @@ Our priorities are:
 - Readability
 - Reliability
 - Performance
-
-To improve readability, do not write one off logics as helper functions. Inline them. Once it needs to be reused, refactor it into a reusable function.
+- Stealth
 
 If a tradeoff is required, choose correctness and robustness over short-term convenience.
 

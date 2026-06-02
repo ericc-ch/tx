@@ -2,17 +2,55 @@
 
 import { readFileSync, writeFileSync } from "node:fs"
 import { basename, dirname, extname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import Papa from "papaparse"
+import type { Customer } from "../packages/server/src/rpc/schema.ts"
 
-const [inputPath, outputPathArg] = process.argv.slice(2)
-
-if (!inputPath) {
-  console.error("Usage: node scripts/csv-to-json.ts <input.csv> [output.json]")
-  process.exit(1)
+const PAYMENT_METHOD_ALIASES: Record<string, string> = {
+  bca: "BCA Virtual Account",
+  mandiri: "Mandiri Virtual Account",
+  "va mandiri": "Mandiri Virtual Account",
 }
 
-const outputFile =
-  outputPathArg ?? join(dirname(inputPath), `${basename(inputPath, extname(inputPath))}.json`)
+const normalizePhone = (phone: string) => {
+  const digits = phone.replace(/\D/g, "")
+  if (digits.startsWith("0")) return digits.slice(1)
+  return digits
+}
+
+const normalizeBirthDate = (birthDate: string) => {
+  const trimmed = birthDate.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed
+
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(trimmed)
+  if (!match) return trimmed
+
+  const month = match[1]!.padStart(2, "0")
+  const day = match[2]!.padStart(2, "0")
+  const year = match[3]!
+  return `${year}-${month}-${day}`
+}
+
+const normalizePaymentMethod = (paymentMethod: string) => {
+  const trimmed = paymentMethod.trim()
+  return PAYMENT_METHOD_ALIASES[trimmed.toLowerCase()] ?? trimmed
+}
+
+export const normalizeCustomer = (raw: typeof Customer.Type): typeof Customer.Type => ({
+  name: raw.name.trim(),
+  email: raw.email.trim().toLowerCase(),
+  birthDate: normalizeBirthDate(raw.birthDate),
+  gender: raw.gender.trim().toLowerCase(),
+  nik: raw.nik.trim(),
+  phone: normalizePhone(raw.phone),
+  categories: [
+    ...new Set(raw.categories.map((category) => category.trim().toLowerCase()).filter(Boolean)),
+  ],
+  ticketCount: raw.ticketCount,
+  day: raw.day.trim().toLowerCase(),
+  membershipCode: raw.membershipCode.trim(),
+  paymentMethod: normalizePaymentMethod(raw.paymentMethod),
+})
 
 const parseCategories = (raw: string) =>
   raw
@@ -34,19 +72,33 @@ const decodeRow = (row: Record<string, string>) => ({
   paymentMethod: row["Metode Pembayaran"].trim(),
 })
 
-const csv = readFileSync(inputPath, "utf8")
-const result = Papa.parse<Record<string, string>>(csv, {
-  header: true,
-  skipEmptyLines: true,
-})
+const run = () => {
+  const [inputPath, outputPathArg] = process.argv.slice(2)
 
-if (result.errors.length > 0) {
-  for (const error of result.errors) {
-    console.error(`CSV parse error at row ${error.row}: ${error.message}`)
+  if (!inputPath) {
+    console.error("Usage: node scripts/csv-to-json.ts <input.csv> [output.json]")
+    process.exit(1)
   }
-  process.exit(1)
+
+  const outputFile =
+    outputPathArg ?? join(dirname(inputPath), `${basename(inputPath, extname(inputPath))}.json`)
+
+  const csv = readFileSync(inputPath, "utf8")
+  const result = Papa.parse<Record<string, string>>(csv, {
+    header: true,
+    skipEmptyLines: true,
+  })
+
+  if (result.errors.length > 0) {
+    for (const error of result.errors) {
+      console.error(`CSV parse error at row ${error.row}: ${error.message}`)
+    }
+    process.exit(1)
+  }
+
+  const customers = result.data.map(decodeRow).map(normalizeCustomer)
+  writeFileSync(outputFile, `${JSON.stringify(customers, null, 2)}\n`)
+  console.log(`Wrote ${customers.length} customers to ${outputFile}`)
 }
 
-const customers = result.data.map(decodeRow)
-writeFileSync(outputFile, `${JSON.stringify(customers, null, 2)}\n`)
-console.log(`Wrote ${customers.length} customers to ${outputFile}`)
+if (process.argv[1] === fileURLToPath(import.meta.url)) run()

@@ -2,27 +2,27 @@
   {
     "name": "Tono Tenda",
     "email": "tonotenda@example.com",
-    "birthDate": "7/13/2003",
-    "gender": "Female",
+    "birthDate": "2003-07-13",
+    "gender": "female",
     "nik": "3122022302230022",
-    "phone": "082259225223",
+    "phone": "82259225223",
     "categories": ["cat 1", "last forever fan", "festival"],
     "ticketCount": 1,
-    "day": "Day 1 /Day2",
+    "day": "day 1",
     "membershipCode": "BA203480222",
-    "paymentMethod": "BCA"
+    "paymentMethod": "BCA Virtual Account"
   },
   {
     "name": "Tronton Tuntu",
     "email": "tronton@gmail.com",
-    "birthDate": "1/4/2001",
-    "gender": "Female",
+    "birthDate": "2001-01-04",
+    "gender": "female",
     "nik": "3207042201110044",
-    "phone": "085122005833",
+    "phone": "85122005833",
     "categories": ["festival", "cat 1"],
     "ticketCount": 2,
-    "day": "Day 1",
+    "day": "day 1",
     "membershipCode": "BA767815122",
-    "paymentMethod": "VA MANDIRI"
+    "paymentMethod": "Mandiri Virtual Account"
   }
 ]

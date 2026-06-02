@@ -9,11 +9,13 @@ import { autobuyFailureReason } from "./errors"
 import { runOrder } from "./flow-order"
 import { resetToOverview, runOverview } from "./flow-overview"
 import { runPackages } from "./flow-packages"
+import { runPaymentConfirm } from "./flow-payment-confirm"
+import { runPayment } from "./flow-payment"
 import { pageKind } from "./routing"
 
 const MAX_AUTOBUY_ATTEMPTS = 3
 
-type FlowStep = "routing" | "awaiting-order" | "done"
+type FlowStep = "routing" | "awaiting-order" | "awaiting-payment" | "awaiting-payment-confirm" | "done"
 
 const acquireCustomer = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -85,6 +87,16 @@ const runAutobuyFlow = Effect.gen(function* () {
           }
           case "order": {
             const result = yield* runOrder
+            if (result === "submitted") flowStep = "awaiting-payment"
+            break
+          }
+          case "payment": {
+            const result = yield* runPayment
+            if (result === "submitted") flowStep = "awaiting-payment-confirm"
+            break
+          }
+          case "payment-confirm": {
+            const result = yield* runPaymentConfirm
             if (result === "done") flowStep = "done"
             break
           }
@@ -98,6 +110,22 @@ const runAutobuyFlow = Effect.gen(function* () {
       case "awaiting-order":
         if (browserState === "order") {
           const result = yield* runOrder
+          if (result === "submitted") flowStep = "awaiting-payment"
+        } else {
+          idle = true
+        }
+        break
+      case "awaiting-payment":
+        if (browserState === "payment") {
+          const result = yield* runPayment
+          if (result === "submitted") flowStep = "awaiting-payment-confirm"
+        } else {
+          idle = true
+        }
+        break
+      case "awaiting-payment-confirm":
+        if (browserState === "payment-confirm") {
+          const result = yield* runPaymentConfirm
           if (result === "done") flowStep = "done"
         } else {
           idle = true
