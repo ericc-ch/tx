@@ -66,7 +66,8 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
         return [newRows.length, next] as const
       })
 
-      if (added > 0) yield* Effect.logInfo("Customer pool reload added", added, "rows from", dataPath)
+      if (added > 0)
+        yield* Effect.logInfo("Customer pool reload added", added, "rows from", dataPath)
       else yield* Effect.logDebug("No new customer data loaded")
     })
 

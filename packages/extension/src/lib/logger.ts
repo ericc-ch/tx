@@ -22,9 +22,7 @@ const remoteLogger = Effect.gen(function* () {
     window: Duration.seconds(1),
     flush: (entries) =>
       client.PushLogs({ browserId, entries }).pipe(
-        Effect.tapError((error) =>
-          Effect.logWarning("PushLogs failed for", browserId, "—", error),
-        ),
+        Effect.tapError((error) => Effect.logWarning("PushLogs failed for", browserId, "—", error)),
         Effect.catch(() => Effect.void),
       ),
   })
