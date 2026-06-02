@@ -3,7 +3,7 @@ import { CustomerStore } from "@/lib/customer-store"
 import { ContentLive } from "@/lib/rpc"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { ServerRpcs } from "@tx/server/schema"
-import { Duration, Effect, Layer, Option } from "effect"
+import { Duration, Effect, Layer, Option, Schedule } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
 import { autobuyFailureReason } from "./errors"
 import { runOrder } from "./flow-order"
@@ -11,7 +11,7 @@ import { resetToOverview, runOverview } from "./flow-overview"
 import { runPackages } from "./flow-packages"
 import { pageKind } from "./routing"
 
-const maxAutobuyAttempts = 3
+const MAX_AUTOBUY_ATTEMPTS = 3
 
 type FlowStep = "routing" | "awaiting-order" | "done"
 
@@ -34,17 +34,19 @@ const acquireCustomer = Effect.gen(function* () {
   let poolWasEmpty = false
 
   while (true) {
-    const response = yield* client.ClaimCustomer({ browserId }).pipe(
-      Effect.tapError((error) =>
-        Effect.logWarning("ClaimCustomer RPC failed for", browserId, "—", error),
-      ),
-    )
+    const response = yield* client
+      .ClaimCustomer({ browserId })
+      .pipe(
+        Effect.tapError((error) =>
+          Effect.logWarning("ClaimCustomer RPC failed for", browserId, "—", error),
+        ),
+      )
     if ("empty" in response) {
       if (!poolWasEmpty) {
         yield* Effect.logInfo("Customer pool empty, waiting for customers...")
         poolWasEmpty = true
       }
-      yield* Effect.sleep(Duration.seconds(5))
+      yield* Effect.sleep(Duration.seconds(1))
       continue
     }
 
@@ -57,11 +59,18 @@ const acquireCustomer = Effect.gen(function* () {
 
 const runAutobuyFlow = Effect.gen(function* () {
   let flowStep: FlowStep = "routing"
+  let lastLoggedKey = ""
 
   while (flowStep !== "done") {
     const browserState = pageKind(location)
+    const stepKey = `${flowStep}:${browserState}`
 
-    yield* Effect.logDebug("Autobuy step", "browserState", browserState, "flowStep", flowStep)
+    if (stepKey !== lastLoggedKey) {
+      yield* Effect.logDebug("Autobuy step", "browserState", browserState, "flowStep", flowStep)
+      lastLoggedKey = stepKey
+    }
+
+    let idle = false
 
     switch (flowStep) {
       case "routing":
@@ -80,7 +89,7 @@ const runAutobuyFlow = Effect.gen(function* () {
             break
           }
           case "unknown":
-            yield* Effect.logDebug("Unknown page, waiting...")
+            idle = true
             break
           default:
             browserState satisfies never
@@ -91,33 +100,36 @@ const runAutobuyFlow = Effect.gen(function* () {
           const result = yield* runOrder
           if (result === "done") flowStep = "done"
         } else {
-          yield* Effect.logDebug("Waiting for order page", "browserState:", browserState)
+          idle = true
         }
         break
       default:
         flowStep satisfies never
     }
+
+    if (idle) {
+      yield* Effect.sleep(Duration.millis(10))
+    }
   }
 })
 
-let autobuyAttempt = 0
-
-const runAutobuyWithRetries = runAutobuyFlow.pipe(
-  Effect.tapError((error) =>
+const autobuyRetryPolicy = Schedule.recurs(MAX_AUTOBUY_ATTEMPTS - 1).pipe(
+  Schedule.tapInput((error) =>
     Effect.gen(function* () {
-      autobuyAttempt++
-      if (autobuyAttempt < maxAutobuyAttempts) {
+      const { attempt } = yield* Schedule.CurrentMetadata
+      if (attempt < MAX_AUTOBUY_ATTEMPTS) {
         yield* Effect.logWarning(
           "Autobuy failed",
-          `(${autobuyAttempt}/${maxAutobuyAttempts}):`,
+          `(${attempt}/${MAX_AUTOBUY_ATTEMPTS}):`,
           autobuyFailureReason(error),
         )
       }
       yield* resetToOverview
     }),
   ),
-  Effect.retry({ times: maxAutobuyAttempts - 1 }),
 )
+
+const runAutobuyWithRetries = Effect.retry(runAutobuyFlow, autobuyRetryPolicy)
 
 const main = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -130,7 +142,6 @@ const main = Effect.gen(function* () {
   }
 
   while (true) {
-    autobuyAttempt = 0
     yield* acquireCustomer
     const customerEmail = (yield* store.get()).pipe(
       Option.map((customer) => customer.email),
@@ -146,7 +157,7 @@ const main = Effect.gen(function* () {
             "Customer wasted:",
             customerEmail,
             "after",
-            maxAutobuyAttempts,
+            MAX_AUTOBUY_ATTEMPTS,
             "attempts —",
             autobuyFailureReason(cause),
           )
