@@ -2,9 +2,6 @@
   "name": "@tx/server",
   "version": "0.0.1",
   "description": "tx RPC server and CLI",
-  "keywords": [
-    "tx"
-  ],
   "homepage": "https://github.com/ericc-ch/tx",
   "bugs": "https://github.com/ericc-ch/tx/issues",
   "author": {
@@ -15,24 +12,15 @@
     "type": "git",
     "url": "https://github.com/ericc-ch/tx.git"
   },
-  "bin": {
-    "tx": "./dist/cli.mjs"
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
   "type": "module",
   "exports": {
     "./schema": {
       "default": "./src/rpc/schema.ts"
     }
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "build": "tsdown",
+    "build:bun": "bun scripts/build-bun.ts",
     "prepack": "pnpm run build",
     "dev": "node src/cli.ts",
     "typecheck": "tsc --noEmit"
@@ -45,6 +33,7 @@
   },
   "devDependencies": {
     "@effect/vitest": "^4.0.0-beta.66",
+    "@tsdown/exe": "^0.22.1",
     "@types/node": "24.x.x",
     "tsdown": "^0.22.0"
   }

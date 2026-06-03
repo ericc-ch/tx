@@ -1,5 +1,6 @@
 node_modules/
 dist/
+packages/server/build/
 .output/
 .references/
 *.tsbuildinfo

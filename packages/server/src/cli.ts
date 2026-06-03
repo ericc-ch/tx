@@ -126,7 +126,7 @@ const tiketStartCommand = Command.make(
       yield* Effect.logInfo("Server is listening on port", port)
 
       const browser = yield* BrowserLauncher
-      const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 2))
+      const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 4))
       yield* Effect.all(
         Array.from({ length: count }, () => browser.spawn({ url, port })),
         { concurrency: parallelism },

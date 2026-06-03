@@ -9,7 +9,10 @@ interface BrowserEntry {
   profilePath: string
 }
 
+const mobileWindowSize = "390,844"
+
 export const browserSwitches = [
+  `--window-size=${mobileWindowSize}`,
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-default-apps",
