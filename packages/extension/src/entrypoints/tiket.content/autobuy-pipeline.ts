@@ -1,6 +1,13 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Duration, Effect } from "effect"
-import { AutobuyProgress, canRunPageStep } from "./autobuy-progress"
+import { AutobuyProgress } from "./autobuy-progress"
+import {
+  autobuySteps,
+  checkoutSteps,
+  finalCheckpoint,
+  type AutobuyPage,
+  type CheckoutCheckpoint,
+} from "./checkout-sequence"
 import * as RateLimitDialog from "./rate-limit-dialog"
 import { runOrder } from "./flow-order"
 import { runOverview } from "./flow-overview"
@@ -8,8 +15,27 @@ import { runPackages } from "./flow-packages"
 import { runPaymentConfirm } from "./flow-payment-confirm"
 import { runPayment } from "./flow-payment"
 import { pageKind } from "./routing"
+import { waitForPageKind } from "./wait-for-page"
 
 const idleSleep = Effect.sleep(Duration.seconds(1))
+
+const runForPage = (page: AutobuyPage) => {
+  switch (page) {
+    case "overview":
+      return runOverview
+    case "packages":
+      return runPackages
+    case "order":
+      return runOrder
+    case "payment":
+      return runPayment
+    case "payment-confirm":
+      return runPaymentConfirm
+    default:
+      page satisfies never
+      return idleSleep
+  }
+}
 
 export const runAutobuyPipeline = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -18,7 +44,7 @@ export const runAutobuyPipeline = Effect.gen(function* () {
   let completed = yield* progress.resolvedCompleted(customer.email, pageKind(location))
   let lastLoggedKey = ""
 
-  while (completed !== "confirm") {
+  while (completed !== finalCheckpoint) {
     if (yield* RateLimitDialog.handleIfPresent) {
       yield* idleSleep
       continue
@@ -38,40 +64,30 @@ export const runAutobuyPipeline = Effect.gen(function* () {
       lastLoggedKey = stepKey
     }
 
-    // Overview is navigation-only, not a checkout checkpoint — must not use canRunPageStep.
-    if (browserState === "overview") {
-      yield* runOverview
+    const step = autobuySteps.find((entry) => entry.page === browserState)
+
+    if (!step) {
       yield* idleSleep
       continue
     }
 
-    if (!canRunPageStep(completed, browserState)) {
+    if (step.kind === "navigation") {
+      yield* runForPage(step.page)
       yield* idleSleep
       continue
     }
 
-    switch (browserState) {
-      case "packages":
-        yield* runPackages
-        completed = yield* progress.markCompleted(customer.email, "packages")
-        break
-      case "order":
-        yield* runOrder
-        completed = yield* progress.markCompleted(customer.email, "order")
-        break
-      case "payment":
-        yield* runPayment
-        completed = yield* progress.markCompleted(customer.email, "payment")
-        break
-      case "payment-confirm":
-        yield* runPaymentConfirm
-        completed = yield* progress.markCompleted(customer.email, "confirm")
-        break
-      case "unknown":
-        yield* idleSleep
-        break
-      default:
-        browserState satisfies never
+    const stepIndex = checkoutSteps.findIndex((entry) => entry.page === browserState)
+    const required: "none" | CheckoutCheckpoint =
+      stepIndex <= 0 ? "none" : checkoutSteps[stepIndex - 1]!.checkpoint
+
+    if (completed !== required) {
+      yield* idleSleep
+      continue
     }
+
+    yield* runForPage(step.page)
+    if ("waitFor" in step) yield* waitForPageKind(step.waitFor)
+    completed = yield* progress.markCompleted(customer.email, step.checkpoint)
   }
 })

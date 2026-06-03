@@ -1,6 +1,6 @@
 import { NodeFileSystem, NodePath } from "@effect/platform-node"
 import { describe, expect, it } from "@effect/vitest"
-import { Effect, FileSystem, Layer, Path } from "effect"
+import { Duration, Effect, FileSystem, Layer, Path } from "effect"
 import { CustomerPool } from "../src/lib/customer-pool.ts"
 import { TxConfig } from "../src/lib/config.ts"
 
@@ -120,7 +120,7 @@ describe("CustomerPool", () => {
       expect(first?.email).toBe("tonotenda@example.com")
 
       yield* fs.writeFileString(file, `${JSON.stringify(sampleCustomers, null, 2)}\n`)
-      yield* Effect.sleep("500 millis")
+      yield* Effect.sleep(Duration.millis(500))
 
       const reloaded = yield* pool.claim()
       const afterReload = yield* pool.claim()

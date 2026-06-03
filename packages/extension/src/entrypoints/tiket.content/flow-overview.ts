@@ -1,5 +1,6 @@
-import { Duration, Effect } from "effect"
-import { overviewUrl, packagesUrl, pageKind } from "./routing"
+import { Effect } from "effect"
+import { overviewUrl, packagesUrl } from "./routing"
+import { waitForPageKind } from "./wait-for-page"
 
 export const resetToOverview = Effect.gen(function* () {
   const url = overviewUrl(location)
@@ -7,10 +8,7 @@ export const resetToOverview = Effect.gen(function* () {
 
   yield* Effect.sync(() => location.assign(url))
   yield* Effect.logDebug("Resetting to overview", url)
-
-  while (pageKind(location) !== "overview") {
-    yield* Effect.sleep(Duration.millis(100))
-  }
+  yield* waitForPageKind("overview")
 })
 
 export const runOverview = Effect.gen(function* () {

@@ -1,7 +1,6 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Page } from "@/lib/playwlite"
 import { Effect } from "effect"
-import { waitForNextPage } from "./step-wait"
 
 export const SAVE_BUTTON_TEXT = /^(save|simpan)$/i
 export const CONTINUE_PAYMENT_TEXT = /continue to payment|lanjut(?:kan)?(?:\s+ke)?\s+pembayaran/i
@@ -61,6 +60,4 @@ export const runOrder = Effect.gen(function* () {
 
   yield* page.getByRole("button", { name: CONTINUE_PAYMENT_TEXT }).click({ force: true })
   yield* Effect.logInfo("Continued to payment for", customer.email, customer.paymentMethod)
-
-  yield* waitForNextPage("payment")
 })

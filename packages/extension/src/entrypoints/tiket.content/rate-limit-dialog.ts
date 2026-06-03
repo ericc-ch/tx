@@ -5,13 +5,18 @@ export const RATE_LIMIT_RETRY = /^(retry|coba lagi)$/i
 
 export const isPresent = Effect.gen(function* () {
   const page = new Page(document)
-  return (yield* page.getByRole("button", { name: RATE_LIMIT_RETRY }).filter({ visible: true }).count()) > 0
+  return (
+    (yield* page
+      .getByRole("button", { name: RATE_LIMIT_RETRY })
+      .filter({ visible: true })
+      .count()) > 0
+  )
 })
 
 export const clickRetryWhenReady = Effect.gen(function* () {
   const page = new Page(document)
   const retry = page.getByRole("button", { name: RATE_LIMIT_RETRY }).first()
-  yield* retry.click({ timeout: "90 seconds" })
+  yield* retry.click()
   yield* Effect.logDebug("Clicked rate-limit dialog retry")
 })
 

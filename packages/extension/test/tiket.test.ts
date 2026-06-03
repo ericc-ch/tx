@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer-store"
 import { Page } from "@/lib/playwlite"
-import { Effect, Layer } from "effect"
+import { Effect } from "effect"
 import {
   COUNTRY_INDONESIA_TEXT,
   COUNTRY_SHEET_TEXT,
@@ -10,7 +10,6 @@ import {
 } from "../src/entrypoints/tiket.content/flow-order"
 import { runPayment } from "../src/entrypoints/tiket.content/flow-payment"
 import { runPackages } from "../src/entrypoints/tiket.content/flow-packages"
-import { StepWait } from "../src/entrypoints/tiket.content/step-wait"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
 const defaultCustomer = {
@@ -41,8 +40,7 @@ const orderCustomer = {
   paymentMethod: "BCA Virtual Account",
 }
 
-const flowLayers = (customer = defaultCustomer) =>
-  Layer.mergeAll(CustomerStore.testLayer(customer), StepWait.testLayer)
+const flowLayers = (customer = defaultCustomer) => CustomerStore.testLayer(customer)
 
 const runPackagesWithCustomer = (customer = defaultCustomer) =>
   runPackages.pipe(Effect.provide(flowLayers(customer)))

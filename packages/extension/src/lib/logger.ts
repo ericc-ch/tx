@@ -14,8 +14,10 @@ const remoteLogger = Effect.gen(function* () {
   const defaultMinimumLogLevel = yield* References.MinimumLogLevel
 
   const minimumLogLevel =
-    initPayload.pipe(Option.map((p) => p.minimumLogLevel), Option.getOrUndefined) ??
-    defaultMinimumLogLevel
+    initPayload.pipe(
+      Option.map((p) => p.minimumLogLevel),
+      Option.getOrUndefined,
+    ) ?? defaultMinimumLogLevel
 
   const withLogLevel = (logger: Logger.Logger<unknown, void>) =>
     Logger.layer([logger], { mergeWithExisting: true }).pipe(
@@ -30,7 +32,7 @@ const remoteLogger = Effect.gen(function* () {
   const { browserId } = initPayload.value
 
   const logger = yield* Logger.batched(remoteLogEntry, {
-    window: Duration.seconds(2),
+    window: Duration.seconds(5),
     flush: Effect.fn(function* (entries) {
       yield* client.PushLogs({ browserId, entries }).pipe(
         Effect.tapError((error) => Effect.logWarning("PushLogs failed for", browserId, "—", error)),

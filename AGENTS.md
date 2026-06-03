@@ -28,6 +28,8 @@ Prefer inline code. Extract a function or helper only when it is reused or when 
 
 Write fewer tests. Prefer integration tests.
 
+Do not compromise production code for testing. No test-only hooks, exports, flags, or abstractions; no test-env branching or exposing internals for mocks. If something is hard to test, adapt the tests — not the product.
+
 - Do not test what the type system already guarantees (eg schema shapes, literal unions, trivial getters).
 - Test behavior that can actually regress.
 - Use real fixtures only — HTML captured from production pages under `fixtures/`. Do not maintain synthetic stand-in pages; testing against fake DOM only validates your own mocks.

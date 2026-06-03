@@ -1,7 +1,6 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Page } from "@/lib/playwlite"
 import { Effect } from "effect"
-import { waitForNextPage } from "./step-wait"
 
 export const runPayment = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -16,6 +15,4 @@ export const runPayment = Effect.gen(function* () {
   const submitButton = page.getByTestId("submit_button")
   yield* submitButton.click()
   yield* Effect.logInfo("Submitted payment for", customer.email, customer.paymentMethod)
-
-  yield* waitForNextPage("payment-confirm")
 })

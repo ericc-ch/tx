@@ -1,8 +1,7 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
-import { Effect, Schedule } from "effect"
+import { Duration, Effect, Schedule } from "effect"
 import { NoPackageAvailable } from "./errors"
-import { waitForNextPage } from "./step-wait"
 
 export const OPEN_SHEET_BUTTON_TEXT =
   /^(pilih|select|pilih tiket|select ticket|verifikasi kode|verify code)$/i
@@ -13,8 +12,8 @@ export const SOLD_OUT_TEXT = /^(terjual habis|sold out)$/i
 
 const DEFAULT_CATEGORY_PRIORITY = ["cat 6", "last forever fan", "festival", "cat 1"]
 
-const quantitySettleSchedule = Schedule.spaced("50 millis").pipe(
-  Schedule.both(Schedule.during("2 seconds")),
+const quantitySettleSchedule = Schedule.spaced(Duration.millis(100)).pipe(
+  Schedule.both(Schedule.during(Duration.seconds(2))),
 )
 
 export const runPackages = Effect.gen(function* () {
@@ -175,13 +174,8 @@ export const runPackages = Effect.gen(function* () {
       continue
     }
 
-    yield* sheet
-      .getByRole("button", { name: ORDER_BUTTON_TEXT, disabled: false })
-      .first()
-      .click()
+    yield* sheet.getByRole("button", { name: ORDER_BUTTON_TEXT, disabled: false }).first().click()
     yield* Effect.logInfo("Ordered", buyCount, "from", match.title, "for", customer.email)
-
-    yield* waitForNextPage("order")
     return
   }
 
