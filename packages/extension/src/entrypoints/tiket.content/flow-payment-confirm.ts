@@ -50,6 +50,8 @@ export const runPaymentConfirm = Effect.gen(function* () {
   const reported = yield* reportedVaStore.get()
   if (Option.exists(reported, (value) => value === virtualAccount)) return
 
+  yield* Effect.sleep(Duration.seconds(2))
+
   const screenshotBase64 = yield* captureTabScreenshot
   const client = yield* RpcClient.make(ServerRpcs)
 
