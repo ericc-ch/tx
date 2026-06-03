@@ -1,10 +1,13 @@
 import { Effect, Formatter } from "effect"
 import { CustomerPool } from "../lib/customer-pool.ts"
+import { sendPaymentConfirm } from "../lib/discord-notify.ts"
+import { TxConfig } from "../lib/config.ts"
 import { ServerRpcs } from "./schema.ts"
 
 export const RpcHandlers = ServerRpcs.toLayer(
   Effect.gen(function* () {
     const pool = yield* CustomerPool
+    const { config } = yield* TxConfig
     const poolEmptyLoggedForBrowser = new Set<string>()
 
     return ServerRpcs.of({
@@ -43,6 +46,43 @@ export const RpcHandlers = ServerRpcs.toLayer(
             }
           },
           { discard: true },
+        ),
+      ReportPaymentConfirm: ({
+        browserId,
+        virtualAccount,
+        customerEmail,
+        paymentMethod,
+        screenshotBase64,
+      }) =>
+        Effect.gen(function* () {
+          const webhookUrl = config.discordWebhookUrl?.trim()
+          if (!webhookUrl) {
+            yield* Effect.logDebug("discordWebhookUrl not set, skipping payment notify")
+            return
+          }
+
+          yield* Effect.logDebug(
+            "Payment notify sending",
+            browserId,
+            customerEmail,
+            paymentMethod,
+            virtualAccount,
+          )
+
+          yield* sendPaymentConfirm({
+            webhookUrl,
+            virtualAccount,
+            customerEmail,
+            paymentMethod,
+            screenshotBase64,
+          })
+
+          yield* Effect.logInfo("Payment notify sent", browserId, customerEmail, virtualAccount)
+        }).pipe(
+          Effect.tapError((error) =>
+            Effect.logError("Payment notify failed", browserId, customerEmail, error),
+          ),
+          Effect.orDie,
         ),
     })
   }),

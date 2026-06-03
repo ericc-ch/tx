@@ -11,6 +11,7 @@ export const TxConfigSchema = Schema.Struct({
   customerDataPath: Schema.String,
   userDataDir: Schema.optional(Schema.NonEmptyString),
   copyUserDataDirToTmp: Schema.optional(Schema.Boolean),
+  discordWebhookUrl: Schema.optional(Schema.String),
   $schema: Schema.optional(Schema.String),
 })
 

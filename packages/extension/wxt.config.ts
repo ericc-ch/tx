@@ -7,7 +7,7 @@ export default defineConfig({
   browser: "chrome",
   modules: ["@wxt-dev/module-solid"],
   manifest: {
-    permissions: ["storage", "tabs"],
+    permissions: ["storage", "tabs", "activeTab", "<all_urls>"],
     host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
   },
   dev: {

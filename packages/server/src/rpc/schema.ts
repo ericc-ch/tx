@@ -7,6 +7,7 @@ export const InitPayload = Schema.Struct({
   browserId: Schema.String,
   port: Schema.Number,
   minimumLogLevel: Schema.optional(Config.LogLevel),
+  notifyPayment: Schema.optional(Schema.Boolean),
 })
 
 export const InitPayloadFromUrlParam = Schema.StringFromBase64Url.pipe(
@@ -48,6 +49,14 @@ export const PushLogsPayload = Schema.Struct({
   entries: Schema.Array(RemoteLogEntry),
 })
 
+export const ReportPaymentConfirmPayload = Schema.Struct({
+  browserId: Schema.String,
+  virtualAccount: Schema.String,
+  customerEmail: Schema.String,
+  paymentMethod: Schema.String,
+  screenshotBase64: Schema.String,
+})
+
 export const ServerRpcs = RpcGroup.make(
   Rpc.make("ClaimCustomer", {
     payload: ClaimCustomerReq,
@@ -55,6 +64,10 @@ export const ServerRpcs = RpcGroup.make(
   }),
   Rpc.make("PushLogs", {
     payload: PushLogsPayload,
+    success: Schema.Void,
+  }),
+  Rpc.make("ReportPaymentConfirm", {
+    payload: ReportPaymentConfirmPayload,
     success: Schema.Void,
   }),
 )

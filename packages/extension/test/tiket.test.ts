@@ -9,6 +9,7 @@ import {
   runOrder,
 } from "../src/entrypoints/tiket.content/flow-order"
 import { runPayment } from "../src/entrypoints/tiket.content/flow-payment"
+import { virtualAccountFromRoot } from "../src/entrypoints/tiket.content/flow-payment-confirm"
 import { runPackages } from "../src/entrypoints/tiket.content/flow-packages"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
@@ -268,5 +269,23 @@ describe("tiket autobuy", () => {
 
     expect(bcaRadio.checked).toBe(true)
     expect(submitButton.dataset.clicked).toBe("true")
+  })
+
+  it("extracts virtual account from payment confirm (en)", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/tiket-payment-confirm-vabca-en.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    expect(virtualAccountFromRoot(document)).toBe("780011349304235")
+  })
+
+  it("extracts virtual account from payment confirm (id)", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/tiket-payment-confirm-vabca-id.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    expect(virtualAccountFromRoot(document)).toBe("780011349415035")
   })
 })

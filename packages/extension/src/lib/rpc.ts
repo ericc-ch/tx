@@ -1,5 +1,6 @@
 import { Init } from "@/lib/init"
 import { RemoteLoggerLayer } from "@/lib/logger"
+import { CaptureScreenshotMsg } from "@/lib/screenshot"
 import { Effect, Layer, Option, Schema } from "effect"
 import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/http"
 import { RpcClient, RpcSerialization } from "effect/unstable/rpc"
@@ -61,6 +62,17 @@ export const registerRpcTunnel = Effect.gen(function* () {
   const init = yield* Init
 
   yield* Effect.sync(() => {
+    browser.runtime.onMessage.addListener((message, sender) => {
+      if (Schema.is(CaptureScreenshotMsg)(message)) {
+        const windowId = sender.tab?.windowId
+        if (windowId === undefined) {
+          return Promise.reject(new Error("screenshot capture requires a content-script tab"))
+        }
+        return browser.tabs.captureVisibleTab(windowId, { format: "png" })
+      }
+      return false
+    })
+
     browser.runtime.onMessage.addListener((message) => {
       if (!Schema.is(ForwardMsg)(message)) return false
 

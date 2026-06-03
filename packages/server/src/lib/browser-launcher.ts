@@ -92,10 +92,12 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
         yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
 
         const minimumLogLevel = yield* References.MinimumLogLevel
+        const notifyPayment = !!config.discordWebhookUrl?.trim()
         const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({
           browserId,
           port,
           minimumLogLevel,
+          notifyPayment,
         })
 
         const urlWithInit = new URL(url)

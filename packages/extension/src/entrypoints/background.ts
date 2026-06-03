@@ -1,11 +1,13 @@
 import { registerInitCapture } from "@/lib/init"
 import { BackgroundLive, registerRpcTunnel } from "@/lib/rpc"
+import { registerScreenshotCapture } from "@/lib/screenshot"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { Effect } from "effect"
 
 const main = Effect.gen(function* () {
   yield* Effect.logDebug("Background service worker started")
   yield* registerInitCapture
+  yield* registerScreenshotCapture
   yield* registerRpcTunnel
 })
 

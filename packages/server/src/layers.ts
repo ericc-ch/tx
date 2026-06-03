@@ -18,8 +18,9 @@ export const ServerLive = HttpRouter.serve(RpcLive, { disableLogger: true }).pip
   Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port: 0 })),
 )
 
-const AppServicesLive = Layer.mergeAll(CustomerPool.layer, BrowserLauncher.layer).pipe(
-  Layer.provide(TxConfig.layer),
-)
+const AppServicesLive = Layer.mergeAll(CustomerPool.layer, BrowserLauncher.layer)
 
-export const TiketLive = ServerLive.pipe(Layer.provideMerge(AppServicesLive))
+export const TiketLive = ServerLive.pipe(
+  Layer.provideMerge(AppServicesLive),
+  Layer.provideMerge(TxConfig.layer),
+)
