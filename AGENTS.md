@@ -54,7 +54,7 @@ Available references:
 - effect-smol - Effect v4
 - wxt - WXT (extension framework; manifest, entrypoints, MV2/MV3 conversion)
 - playwright - Playwright
-- discord.js - Discord API (`WebhookClient` for webhooks; stateless — create, send, destroy per notify)
+- discord.js - discord.js
 
 ## Idiomatic Effect (v4)
 

@@ -1,5 +1,6 @@
-import { WebhookClient } from "discord.js"
 import { Data, Effect } from "effect"
+
+const WEBHOOK_TIMEOUT_MS = 30_000
 
 export class DiscordNotifyError extends Data.TaggedError("DiscordNotifyError")<{
   readonly cause: unknown
@@ -12,28 +13,38 @@ export const sendPaymentConfirm = Effect.fn("sendPaymentConfirm")(function* (inp
   readonly paymentMethod: string
   readonly screenshotBase64: string
 }) {
-  const client = yield* Effect.acquireRelease(
-    Effect.sync(() => new WebhookClient({ url: input.webhookUrl })),
-    (client) => Effect.sync(() => client.destroy()),
-  )
-
   const screenshot = yield* Effect.sync(() => Buffer.from(input.screenshotBase64, "base64"))
 
   yield* Effect.tryPromise({
-    try: () =>
-      client.send({
-        embeds: [
-          {
-            fields: [
-              { name: "Email", value: input.customerEmail },
-              { name: "Payment", value: input.paymentMethod },
-              { name: "VA", value: input.virtualAccount },
-            ],
-            image: { url: "attachment://payment.png" },
-          },
-        ],
-        files: [{ attachment: screenshot, name: "payment.png" }],
-      }),
+    async try() {
+      const form = new FormData()
+      form.append(
+        "payload_json",
+        JSON.stringify({
+          embeds: [
+            {
+              fields: [
+                { name: "Email", value: input.customerEmail },
+                { name: "Payment", value: input.paymentMethod },
+                { name: "VA", value: input.virtualAccount },
+              ],
+              image: { url: "attachment://payment.png" },
+            },
+          ],
+        }),
+      )
+      form.append("files[0]", new Blob([screenshot], { type: "image/png" }), "payment.png")
+
+      const response = await fetch(input.webhookUrl, {
+        method: "POST",
+        body: form,
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Discord webhook ${response.status}: ${await response.text()}`)
+      }
+    },
     catch: (cause) => new DiscordNotifyError({ cause }),
   })
 })
