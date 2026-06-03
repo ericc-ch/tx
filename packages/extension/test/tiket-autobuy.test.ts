@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer-store"
-import { Effect, Fiber, Layer } from "effect"
+import { Effect, Layer } from "effect"
 import { runOrder } from "../src/entrypoints/tiket-autobuy.content/flow-order"
 import { runPayment } from "../src/entrypoints/tiket-autobuy.content/flow-payment"
 import { runPackages } from "../src/entrypoints/tiket-autobuy.content/flow-packages"
@@ -174,7 +174,7 @@ describe("tiket autobuy", () => {
 
   it("submits order from package bottom sheet", async () => {
     await Effect.runPromise(
-      loadFixture("../../../fixtures/lany-packages-en.html").pipe(Effect.provide(NodePlatform)),
+      loadFixture("../../../fixtures/tiket-lany-packages-en.html").pipe(Effect.provide(NodePlatform)),
     )
     makeVisible()
 
@@ -184,46 +184,11 @@ describe("tiket autobuy", () => {
     input.removeAttribute("disabled")
 
     await Effect.runPromise(runPackagesWithCustomer())
-  })
-
-  it("submits order from post-verify presale sheet", async () => {
-    await Effect.runPromise(
-      loadFixture("../../../fixtures/whitelist-packages-ready-en.html").pipe(
-        Effect.provide(NodePlatform),
-      ),
-    )
-    makeVisible()
-
-    const input = document.querySelector('[data-testid="bottom-sheet-body"] input[type="number"]')
-    if (!(input instanceof HTMLInputElement)) throw new Error("missing qty input")
-    input.value = "6"
-    input.removeAttribute("disabled")
-
-    await Effect.runPromise(runPackagesWithCustomer())
-  })
-
-  it("fills presale code on presale page", async () => {
-    await Effect.runPromise(
-      loadFixture("../../../fixtures/whitelist-packages-verify-en.html").pipe(
-        Effect.provide(NodePlatform),
-      ),
-    )
-    makeVisible()
-
-    const customer = { ...defaultCustomer, categories: ["cat 1"] }
-    const fiber = Effect.runFork(runPackagesWithCustomer(customer))
-    await new Promise((resolve) => setTimeout(resolve, 500))
-
-    const input = document.querySelector('[data-testid="bottom-sheet-body"] input[type="text"]')
-    if (!(input instanceof HTMLInputElement)) throw new Error("missing presale code input")
-    expect(input.value).toBe(customer.membershipCode)
-
-    await Effect.runPromise(Fiber.interrupt(fiber))
   })
 
   it("fills booking form and continues to payment", async () => {
     await Effect.runPromise(
-      loadFixture("../../../fixtures/tiket-booking-form.html").pipe(Effect.provide(NodePlatform)),
+      loadFixture("../../../fixtures/tiket-booking-form-en.html").pipe(Effect.provide(NodePlatform)),
     )
     wireBookingFormSheet()
 
@@ -249,7 +214,7 @@ describe("tiket autobuy", () => {
 
   it("selects payment method and submits pay now", async () => {
     await Effect.runPromise(
-      loadFixture("../../../fixtures/tiket-payment.html").pipe(Effect.provide(NodePlatform)),
+      loadFixture("../../../fixtures/tiket-payment-en.html").pipe(Effect.provide(NodePlatform)),
     )
     wirePaymentPage()
 

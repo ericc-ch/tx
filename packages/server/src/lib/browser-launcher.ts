@@ -1,4 +1,4 @@
-import { Context, Effect, FileSystem, Layer, Path, Schema } from "effect"
+import { Context, Effect, FileSystem, Layer, Path, References, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
 import { PROFILE_TEMPLATE_DIRECTORY, TxConfig } from "./config.ts"
@@ -91,7 +91,12 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
         yield* fs.copy(templateDir, profilePath)
         yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
 
-        const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({ browserId, port })
+        const minimumLogLevel = yield* References.MinimumLogLevel
+        const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({
+          browserId,
+          port,
+          minimumLogLevel,
+        })
 
         const urlWithInit = new URL(url)
         urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)
