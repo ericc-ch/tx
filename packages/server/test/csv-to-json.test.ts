@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest"
-import { normalizeCustomer } from "../../../scripts/csv-to-json.ts"
+import { normalizeCustomer } from "../scripts/csv-to-json.ts"
 
 describe("normalizeCustomer", () => {
   it("normalizes phone, gender, birth date, categories, and payment method", () => {

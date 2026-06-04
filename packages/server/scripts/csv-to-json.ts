@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { readFileSync, writeFileSync } from "node:fs"
 import { basename, dirname, extname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import Papa from "papaparse"
-import type { Customer } from "../packages/server/src/rpc/schema.ts"
+import type { Customer } from "../src/rpc/schema.ts"
 
 const PAYMENT_METHOD_ALIASES: Record<string, string> = {
   bca: "BCA Virtual Account",
@@ -59,24 +59,24 @@ const parseCategories = (raw: string) =>
     .filter(Boolean)
 
 const decodeRow = (row: Record<string, string>) => ({
-  name: row["Nama Lengkap"].trim(),
-  email: row.Email.trim(),
-  birthDate: row["Tanggal Lahir"].trim(),
-  gender: row.Gender.trim(),
-  nik: row["NIK/KTP"].trim(),
-  phone: row["Nomor Telepon (contoh: 81234567890)"].trim(),
-  categories: parseCategories(row["Kategori Ticket"]),
-  ticketCount: Number.parseInt(row["Jumlah Ticket"].trim(), 10),
-  day: row["Day (contoh: day 1)"].trim(),
-  membershipCode: row["Kode Membership (Presale Only)"].trim(),
-  paymentMethod: row["Metode Pembayaran"].trim(),
+  name: row["Nama Lengkap"]!.trim(),
+  email: row.Email!.trim(),
+  birthDate: row["Tanggal Lahir"]!.trim(),
+  gender: row.Gender!.trim(),
+  nik: row["NIK/KTP"]!.trim(),
+  phone: row["Nomor Telepon (contoh: 81234567890)"]!.trim(),
+  categories: parseCategories(row["Kategori Ticket"]!),
+  ticketCount: Number.parseInt(row["Jumlah Ticket"]!.trim(), 10),
+  day: row["Day (contoh: day 1)"]!.trim(),
+  membershipCode: row["Kode Membership (Presale Only)"]!.trim(),
+  paymentMethod: row["Metode Pembayaran"]!.trim(),
 })
 
 const run = () => {
   const [inputPath, outputPathArg] = process.argv.slice(2)
 
   if (!inputPath) {
-    console.error("Usage: node scripts/csv-to-json.ts <input.csv> [output.json]")
+    console.error("Usage: bun scripts/csv-to-json.ts <input.csv> [output.json]")
     process.exit(1)
   }
 
