@@ -46,7 +46,7 @@ type SelectOption =
     }
 
 const defaultTimeout = Duration.seconds(30)
-const pollInterval = Duration.millis(10)
+const pollInterval = Duration.millis(50)
 const pollSchedule = Schedule.spaced(pollInterval)
 
 export class LocatorTimeout extends Data.TaggedError("LocatorTimeout")<{
