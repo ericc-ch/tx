@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer-store"
 import { Page } from "@/lib/playwlite"
-import { Effect } from "effect"
+import { Cause, Effect, Exit } from "effect"
 import {
   COUNTRY_INDONESIA_TEXT,
   COUNTRY_SHEET_TEXT,
@@ -39,6 +39,31 @@ const orderCustomer = {
   day: "day 1",
   membershipCode: "BA203480222",
   paymentMethod: "BCA Virtual Account",
+}
+
+const babymonsterCustomer = {
+  name: "Fixture Customer A",
+  email: "fixture-customer-a@example.com",
+  birthDate: "2002-01-15",
+  gender: "female",
+  nik: "1000000000000001",
+  phone: "81100000001",
+  categories: ["vip soundcheck a", "cat 3"],
+  ticketCount: 2,
+  day: "day 1",
+  membershipCode: "BZ689417275",
+  paymentMethod: "BCA Virtual Account",
+}
+
+const expectTaggedFailure = async (
+  effect: Effect.Effect<void, unknown, never>,
+  tag: string,
+) => {
+  const exit = await Effect.runPromiseExit(effect)
+  expect(Exit.isFailure(exit)).toBe(true)
+  if (Exit.isFailure(exit)) {
+    expect(Cause.pretty(exit.cause)).toContain(tag)
+  }
 }
 
 const flowLayers = (customer = defaultCustomer) => CustomerStore.testLayer(customer)
@@ -156,6 +181,19 @@ const wirePaymentPage = () => {
   makeVisible()
 }
 
+const wireSeeOtherPackagesDismiss = () => {
+  for (const button of document.querySelectorAll("button")) {
+    if (!/see other packages/i.test(button.textContent?.trim() ?? "")) continue
+    button.addEventListener("click", () => {
+      const modalRoot = document.getElementById("modal-root")
+      if (modalRoot instanceof HTMLElement) modalRoot.replaceChildren()
+    })
+    break
+  }
+
+  makeVisible()
+}
+
 describe("tiket autobuy", () => {
   beforeEach(resetDom)
 
@@ -174,6 +212,34 @@ describe("tiket autobuy", () => {
     input.removeAttribute("disabled")
 
     await Effect.runPromise(runPackagesWithCustomer())
+  })
+
+  it("rejects membership code already used on presale packages page", async () => {
+    await Effect.runPromise(
+      loadFixture("../../../fixtures/tiket-babymonster-weverse-packages-code-used-en.html").pipe(
+        Effect.provide(NodePlatform),
+      ),
+    )
+    makeVisible()
+
+    await expectTaggedFailure(
+      runPackagesWithCustomer(babymonsterCustomer),
+      "MembershipCodeRejected",
+    )
+  })
+
+  it("dismisses unavailable package modal until categories are exhausted", async () => {
+    await Effect.runPromise(
+      loadFixture(
+        "../../../fixtures/tiket-babymonster-weverse-packages-unavailable-modal-en.html",
+      ).pipe(Effect.provide(NodePlatform)),
+    )
+    wireSeeOtherPackagesDismiss()
+
+    await expectTaggedFailure(
+      runPackagesWithCustomer(babymonsterCustomer),
+      "NoPackageAvailable",
+    )
   })
 
   it.each([
