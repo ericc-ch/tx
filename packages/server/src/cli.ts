@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { NodeRuntime, NodeServices } from "@effect/platform-node"
 import { Console, Effect, FileSystem, Formatter, Path, Schema, Terminal } from "effect"

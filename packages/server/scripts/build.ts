@@ -1,31 +1,34 @@
-import { mkdir } from "node:fs/promises"
+import { mkdir, rm } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const serverPackage = join(dirname(fileURLToPath(import.meta.url)), "..")
 const entrypoint = join(serverPackage, "src/cli.ts")
-const outdir = join(serverPackage, "build")
+const outdir = join(serverPackage, "dist")
 
-const targets = [
+const targets: Array<{ target: Bun.Build.CompileTarget; outfile: string }> = [
   { target: "bun-linux-x64", outfile: join(outdir, "tx-linux-x64") },
   { target: "bun-windows-x64", outfile: join(outdir, "tx-win-x64.exe") },
 ] as const
 
+await rm(outdir, { recursive: true, force: true })
 await mkdir(outdir, { recursive: true })
 
 let failed = false
 
 for (const { target, outfile } of targets) {
-  process.stderr.write(`bun build --compile --target=${target} -> ${outfile}\n`)
+  console.log(`building for ${target} -> ${outfile}`)
 
   const result = await Bun.build({
     entrypoints: [entrypoint],
     compile: {
       target,
       outfile,
+      autoloadBunfig: false,
+      autoloadDotenv: false,
     },
     minify: true,
-    sourcemap: "linked",
+    bytecode: true,
   })
 
   if (!result.success) {

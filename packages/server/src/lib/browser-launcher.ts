@@ -57,7 +57,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
       if (config.browserExtensionPath.length === 0) {
         return yield* Effect.die(
           new Error(
-            `browserExtensionPath is not set in ${configFilePath}. Run: pnpm --filter @tx/extension build, then set the path in config.`,
+            `browserExtensionPath is not set in ${configFilePath}. Run: bun run --filter @tx/extension build, then set the path in config.`,
           ),
         )
       }
@@ -66,7 +66,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
       if (!extensionExists) {
         return yield* Effect.die(
           new Error(
-            `Built extension not found at ${config.browserExtensionPath}. Run: pnpm --filter @tx/extension build, then update ${configFilePath}.`,
+            `Built extension not found at ${config.browserExtensionPath}. Run: bun run --filter @tx/extension build, then update ${configFilePath}.`,
           ),
         )
       }
