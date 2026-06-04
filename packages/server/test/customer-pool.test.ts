@@ -1,5 +1,6 @@
 import { NodeFileSystem, NodePath } from "@effect/platform-node"
 import { describe, expect, it } from "@effect/vitest"
+import envPaths from "env-paths"
 import { Duration, Effect, FileSystem, Layer, Path } from "effect"
 import { customerKey } from "../src/rpc/schema.ts"
 import { CustomerPool } from "../src/lib/customer-pool.ts"
@@ -71,6 +72,7 @@ const withPool = (customers: ReadonlyArray<(typeof sampleCustomers)[number]>) =>
                 customerDataPath: file,
               },
               paths: {
+                env: envPaths("tx"),
                 configFilePath: file,
                 userDataDir: dir,
                 templateDir: path.join(dir, "__profile-template"),
