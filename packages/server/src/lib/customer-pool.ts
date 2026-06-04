@@ -11,9 +11,11 @@ import {
 } from "effect"
 import { Customer, CustomerDataFile, customerKey } from "../rpc/schema.ts"
 import { TxConfig } from "./config.ts"
+
 type PoolState = {
   available: ReadonlyArray<typeof Customer.Type>
-  claimedKeys: Set<string>
+  assigned: Map<string, typeof Customer.Type>
+  settled: Set<string>
 }
 
 export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/CustomerPool", {
@@ -29,7 +31,8 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
 
     const ref = yield* SynchronizedRef.make<PoolState>({
       available: [],
-      claimedKeys: new Set<string>(),
+      assigned: new Map(),
+      settled: new Set<string>(),
     })
 
     const loadFile = Effect.fn(function* () {
@@ -39,7 +42,11 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
     })
 
     const initial = yield* loadFile().pipe(Effect.orDie)
-    yield* SynchronizedRef.set(ref, { available: initial, claimedKeys: new Set<string>() })
+    yield* SynchronizedRef.set(ref, {
+      available: initial,
+      assigned: new Map(),
+      settled: new Set<string>(),
+    })
     yield* Effect.logInfo("Customer pool loaded", initial.length, "rows from", dataPath)
 
     const reload = Effect.fn(function* () {
@@ -53,15 +60,18 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
 
       const added = yield* SynchronizedRef.modify(ref, (state) => {
         const availableKeys = new Set(state.available.map(customerKey))
+        const inFlight = new Set([...state.assigned.values()].map(customerKey))
         const newRows = rows.value.filter((row) => {
           const key = customerKey(row)
-          if (state.claimedKeys.has(key)) return false
+          if (state.settled.has(key)) return false
+          if (inFlight.has(key)) return false
           if (availableKeys.has(key)) return false
           return true
         })
         const next: PoolState = {
           available: [...state.available, ...newRows],
-          claimedKeys: state.claimedKeys,
+          assigned: state.assigned,
+          settled: state.settled,
         }
         return [newRows.length, next] as const
       })
@@ -78,19 +88,36 @@ export class CustomerPool extends Context.Service<CustomerPool>()("@tx/server/Cu
       ),
     )
 
-    const claim = Effect.fn(function* () {
+    const claim = Effect.fn(function* (browserId: string) {
       return yield* SynchronizedRef.modify(ref, (state) => {
+        const existing = state.assigned.get(browserId)
+        if (existing) return [existing, state] as const
+
         const [customer, ...rest] = state.available
         if (!customer) return [null, state] as const
 
-        const key = customerKey(customer)
-        const claimedKeys = new Set(state.claimedKeys)
-        claimedKeys.add(key)
-        return [customer, { available: rest, claimedKeys }] as const
+        const assigned = new Map(state.assigned)
+        assigned.set(browserId, customer)
+        return [customer, { ...state, available: rest, assigned }] as const
       })
     })
 
-    return { claim }
+    const resolve = Effect.fn(function* (browserId: string, key: string) {
+      return yield* SynchronizedRef.modify(ref, (state) => {
+        if (state.settled.has(key)) return [false, state] as const
+
+        const customer = state.assigned.get(browserId)
+        if (!customer || customerKey(customer) !== key) return [false, state] as const
+
+        const assigned = new Map(state.assigned)
+        assigned.delete(browserId)
+        const settled = new Set(state.settled)
+        settled.add(key)
+        return [true, { ...state, assigned, settled }] as const
+      })
+    })
+
+    return { claim, resolve }
   }),
 }) {
   static layer = Layer.effect(this, this.make())

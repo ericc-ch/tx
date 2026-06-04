@@ -39,6 +39,13 @@ export const ClaimCustomerRes = Schema.Union([
   Schema.Struct({ empty: Schema.Literal(true) }),
 ])
 
+export const ResolveCustomerPayload = Schema.Struct({
+  browserId: Schema.String,
+  customerKey: Schema.String,
+  outcome: Schema.Union([Schema.Literal("finished"), Schema.Literal("discarded")]),
+  reason: Schema.String,
+})
+
 export const RemoteLogEntry = Schema.Struct({
   level: Config.LogLevel,
   message: Schema.Array(Schema.Unknown),
@@ -61,6 +68,10 @@ export const ServerRpcs = RpcGroup.make(
   Rpc.make("ClaimCustomer", {
     payload: ClaimCustomerReq,
     success: ClaimCustomerRes,
+  }),
+  Rpc.make("ResolveCustomer", {
+    payload: ResolveCustomerPayload,
+    success: Schema.Void,
   }),
   Rpc.make("PushLogs", {
     payload: PushLogsPayload,

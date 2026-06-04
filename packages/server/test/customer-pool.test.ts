@@ -1,6 +1,7 @@
 import { NodeFileSystem, NodePath } from "@effect/platform-node"
 import { describe, expect, it } from "@effect/vitest"
 import { Duration, Effect, FileSystem, Layer, Path } from "effect"
+import { customerKey } from "../src/rpc/schema.ts"
 import { CustomerPool } from "../src/lib/customer-pool.ts"
 import { TxConfig } from "../src/lib/config.ts"
 
@@ -87,13 +88,24 @@ describe("CustomerPool", () => {
     Effect.gen(function* () {
       const { pool } = yield* withPool(sampleCustomers.slice(0, 2))
 
-      const first = yield* pool.claim()
-      const second = yield* pool.claim()
-      const third = yield* pool.claim()
+      const first = yield* pool.claim("browser-a")
+      const second = yield* pool.claim("browser-b")
+      const third = yield* pool.claim("browser-c")
 
       expect(first?.email).toBe("tonotenda@example.com")
       expect(second?.email).toBe("tronton@gmail.com")
       expect(third).toBeNull()
+    }))
+
+  it("returns the same customer for repeated claims from one browser", () =>
+    Effect.gen(function* () {
+      const { pool } = yield* withPool(sampleCustomers.slice(0, 1))
+
+      const first = yield* pool.claim("browser-a")
+      const again = yield* pool.claim("browser-a")
+
+      expect(first?.email).toBe("tonotenda@example.com")
+      expect(again?.email).toBe("tonotenda@example.com")
     }))
 
   it("serializes concurrent claims", () =>
@@ -101,10 +113,8 @@ describe("CustomerPool", () => {
       const { pool } = yield* withPool(sampleCustomers)
 
       const claimed = yield* Effect.all(
-        Array.from({ length: 10 }, () => pool.claim()),
-        {
-          concurrency: 10,
-        },
+        Array.from({ length: 10 }, (_, index) => pool.claim(`browser-${index}`)),
+        { concurrency: 10 },
       )
 
       const emails = claimed.flatMap((customer) => (customer ? [customer.email] : []))
@@ -112,18 +122,31 @@ describe("CustomerPool", () => {
       expect(new Set(emails).size).toBe(3)
     }))
 
-  it("reload appends new rows and ignores claimed keys", () =>
+  it("resolve discarded frees the browser to claim another customer", () =>
+    Effect.gen(function* () {
+      const { pool } = yield* withPool(sampleCustomers.slice(0, 2))
+
+      const first = yield* pool.claim("browser-a")
+      if (!first) throw new Error("expected first customer")
+
+      yield* pool.resolve("browser-a", customerKey(first))
+
+      const next = yield* pool.claim("browser-a")
+      expect(next?.email).toBe("tronton@gmail.com")
+    }))
+
+  it("reload appends new rows and ignores assigned or settled keys", () =>
     Effect.gen(function* () {
       const { pool, file, fs } = yield* withPool(sampleCustomers.slice(0, 2))
 
-      const first = yield* pool.claim()
+      const first = yield* pool.claim("browser-a")
       expect(first?.email).toBe("tonotenda@example.com")
 
       yield* fs.writeFileString(file, `${JSON.stringify(sampleCustomers, null, 2)}\n`)
       yield* Effect.sleep(Duration.millis(500))
 
-      const reloaded = yield* pool.claim()
-      const afterReload = yield* pool.claim()
+      const reloaded = yield* pool.claim("browser-b")
+      const afterReload = yield* pool.claim("browser-c")
 
       expect(reloaded?.email).toBe("third@example.com")
       expect(afterReload).toBeNull()

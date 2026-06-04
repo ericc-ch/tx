@@ -13,7 +13,7 @@ export const RpcHandlers = ServerRpcs.toLayer(
     return ServerRpcs.of({
       ClaimCustomer: ({ browserId }) =>
         Effect.gen(function* () {
-          const customer = yield* pool.claim()
+          const customer = yield* pool.claim(browserId)
           if (!customer) {
             if (!poolEmptyLoggedForBrowser.has(browserId)) {
               poolEmptyLoggedForBrowser.add(browserId)
@@ -24,6 +24,21 @@ export const RpcHandlers = ServerRpcs.toLayer(
           poolEmptyLoggedForBrowser.delete(browserId)
           yield* Effect.logInfo("Browser", browserId, "claimed customer", customer.email)
           return { customer }
+        }),
+      ResolveCustomer: ({ browserId, customerKey: key, outcome, reason }) =>
+        Effect.gen(function* () {
+          const resolved = yield* pool.resolve(browserId, key)
+          if (!resolved) return
+
+          yield* Effect.logInfo(
+            "Browser",
+            browserId,
+            outcome,
+            "customer",
+            key,
+            "—",
+            reason,
+          )
         }),
       PushLogs: ({ browserId, entries }) =>
         Effect.forEach(
