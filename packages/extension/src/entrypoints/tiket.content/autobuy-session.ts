@@ -2,13 +2,64 @@ import { Init } from "@/lib/init"
 import { CustomerStore } from "@/lib/customer-store"
 import { AutobuyProgress } from "./autobuy-progress"
 import { runAutobuyPipeline } from "./autobuy-pipeline"
-import { autobuyFailureReason } from "./errors"
+import { autobuyFailureReason, RateLimited } from "./errors"
 import { resetToOverview } from "./flow-overview"
-import { Duration, Effect, Option, Schedule } from "effect"
+import { Duration, Effect, Option, Result } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
-import { ServerRpcs } from "@tx/server/schema"
+import { customerKey, ServerRpcs, type Customer } from "@tx/server/schema"
 
-export const MAX_AUTOBUY_ATTEMPTS = 3
+const requireBrowserId = Effect.gen(function* () {
+  const init = yield* Init
+  const initPayload = yield* init.get()
+  if (Option.isNone(initPayload)) {
+    return yield* Effect.die(new Error("Extension init not loaded"))
+  }
+  return initPayload.value.browserId
+})
+
+const resolveCustomer = (
+  customer: typeof Customer.Type,
+  outcome: "finished" | "discarded",
+  reason: string,
+) =>
+  Effect.gen(function* () {
+    const client = yield* RpcClient.make(ServerRpcs)
+    const browserId = yield* requireBrowserId
+
+    yield* client.ResolveCustomer({
+      browserId,
+      customerKey: customerKey(customer),
+      outcome,
+      reason,
+    })
+  })
+
+const resolveCustomerBestEffort = (
+  customer: typeof Customer.Type,
+  outcome: "finished" | "discarded",
+  reason: string,
+) =>
+  resolveCustomer(customer, outcome, reason).pipe(
+    Effect.tapError((error) =>
+      Effect.logWarning("ResolveCustomer", outcome, "failed for", customer.email, "—", error),
+    ),
+    Effect.ignore,
+  )
+
+const clearLocalCustomer = Effect.gen(function* () {
+  const store = yield* CustomerStore
+  const progress = yield* AutobuyProgress
+  yield* store.remove()
+  yield* progress.clear()
+})
+
+const discardCustomer = (customer: typeof Customer.Type, reason: string) =>
+  Effect.gen(function* () {
+    yield* resolveCustomerBestEffort(customer, "discarded", reason)
+    yield* clearLocalCustomer
+    yield* resetToOverview
+    yield* Effect.logWarning("Customer discarded:", customer.email, "—", reason)
+  })
 
 export const acquireCustomer = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -19,23 +70,16 @@ export const acquireCustomer = Effect.gen(function* () {
   }
 
   const client = yield* RpcClient.make(ServerRpcs)
-  const init = yield* Init
-  const initPayload = yield* init.get()
-  if (Option.isNone(initPayload)) {
-    return yield* Effect.die(new Error("Extension init not loaded"))
-  }
-  const { browserId } = initPayload.value
+  const browserId = yield* requireBrowserId
 
   let poolWasEmpty = false
 
   while (true) {
-    const response = yield* client
-      .ClaimCustomer({ browserId })
-      .pipe(
-        Effect.tapError((error) =>
-          Effect.logWarning("ClaimCustomer RPC failed for", browserId, "—", error),
-        ),
-      )
+    const response = yield* client.ClaimCustomer({ browserId }).pipe(
+      Effect.tapError((error) =>
+        Effect.logWarning("ClaimCustomer RPC failed for", browserId, "—", error),
+      ),
+    )
     if ("empty" in response) {
       if (!poolWasEmpty) {
         yield* Effect.logInfo("Customer pool empty, waiting for customers...")
@@ -52,29 +96,33 @@ export const acquireCustomer = Effect.gen(function* () {
   }
 })
 
-const autobuyRetryPolicy = Schedule.recurs(MAX_AUTOBUY_ATTEMPTS - 1).pipe(
-  Schedule.tapInput((error) =>
-    Effect.gen(function* () {
-      const { attempt } = yield* Schedule.CurrentMetadata
-      if (attempt < MAX_AUTOBUY_ATTEMPTS) {
+const runCustomerAttempt = (customer: typeof Customer.Type) =>
+  Effect.gen(function* () {
+    let retried429 = false
+
+    while (true) {
+      const result = yield* runAutobuyPipeline.pipe(Effect.result)
+
+      if (Result.isSuccess(result)) return true
+
+      const error = result.failure
+      if (error instanceof RateLimited && !retried429) {
+        retried429 = true
         yield* Effect.logWarning(
-          "Autobuy failed",
-          `(${attempt}/${MAX_AUTOBUY_ATTEMPTS}):`,
+          "Rate limited for",
+          customer.email,
+          "— retrying once:",
           autobuyFailureReason(error),
         )
+        continue
       }
-      const progress = yield* AutobuyProgress
-      yield* progress.clear()
-      yield* resetToOverview
-    }),
-  ),
-)
 
-const runAutobuyWithRetries = Effect.retry(runAutobuyPipeline, autobuyRetryPolicy)
+      yield* discardCustomer(customer, autobuyFailureReason(error))
+      return false
+    }
+  })
 
 export const runAutobuySession = Effect.gen(function* () {
-  const store = yield* CustomerStore
-  const progress = yield* AutobuyProgress
   const init = yield* Init
 
   if (Option.isNone(yield* init.get())) {
@@ -85,28 +133,11 @@ export const runAutobuySession = Effect.gen(function* () {
 
   while (true) {
     const customer = yield* acquireCustomer
-
-    const purchased = yield* runAutobuyWithRetries.pipe(
-      Effect.as(true),
-      Effect.catch((cause) =>
-        Effect.gen(function* () {
-          yield* store.remove()
-          yield* progress.clear()
-          yield* Effect.logWarning(
-            "Customer wasted:",
-            customer.email,
-            "after",
-            MAX_AUTOBUY_ATTEMPTS,
-            "attempts —",
-            autobuyFailureReason(cause),
-          )
-          return false
-        }),
-      ),
-    )
+    const purchased = yield* runCustomerAttempt(customer)
 
     if (purchased) {
-      yield* progress.clear()
+      yield* resolveCustomerBestEffort(customer, "finished", "purchase completed")
+      yield* clearLocalCustomer
       yield* Effect.logInfo("Purchase successful for", customer.email)
       return
     }
