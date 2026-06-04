@@ -55,10 +55,7 @@ const babymonsterCustomer = {
   paymentMethod: "BCA Virtual Account",
 }
 
-const expectTaggedFailure = async (
-  effect: Effect.Effect<void, unknown, never>,
-  tag: string,
-) => {
+const expectTaggedFailure = async (effect: Effect.Effect<void, unknown, never>, tag: string) => {
   const exit = await Effect.runPromiseExit(effect)
   expect(Exit.isFailure(exit)).toBe(true)
   if (Exit.isFailure(exit)) {
@@ -236,10 +233,7 @@ describe("tiket autobuy", () => {
     )
     wireSeeOtherPackagesDismiss()
 
-    await expectTaggedFailure(
-      runPackagesWithCustomer(babymonsterCustomer),
-      "NoPackageAvailable",
-    )
+    await expectTaggedFailure(runPackagesWithCustomer(babymonsterCustomer), "NoPackageAvailable")
   })
 
   it.each([

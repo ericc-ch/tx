@@ -6,18 +6,21 @@ const serverPackage = join(dirname(fileURLToPath(import.meta.url)), "..")
 const entrypoint = join(serverPackage, "src/cli.ts")
 const outdir = join(serverPackage, "dist")
 
-const targets: Array<{ target: Bun.Build.CompileTarget; outfile: string }> = [
+const targets = [
   { target: "bun-linux-x64", outfile: join(outdir, "tx-linux-x64") },
   { target: "bun-windows-x64", outfile: join(outdir, "tx-win-x64.exe") },
-] as const
+] satisfies Array<{ target: Bun.Build.CompileTarget; outfile: string }>
 
 await rm(outdir, { recursive: true, force: true })
-await mkdir(outdir, { recursive: true })
+await mkdir(outdir)
 
-let failed = false
+console.log(`entrypoint ${entrypoint}`)
+console.log(`output ${outdir}`)
+
+const failed: Array<string> = []
 
 for (const { target, outfile } of targets) {
-  console.log(`building for ${target} -> ${outfile}`)
+  console.log(`[${target}] compiling ${outfile}`)
 
   const result = await Bun.build({
     entrypoints: [entrypoint],
@@ -31,10 +34,19 @@ for (const { target, outfile } of targets) {
     bytecode: true,
   })
 
-  if (!result.success) {
-    failed = true
-    for (const log of result.logs) console.error(log)
+  if (result.success) {
+    console.log(`[${target}] ok`)
+    continue
   }
+
+  console.error(`[${target}] failed`)
+  for (const log of result.logs) console.error(log)
+  failed.push(target)
 }
 
-if (failed) process.exit(1)
+if (failed.length > 0) {
+  console.error(`build failed (${failed.length}/${targets.length}): ${failed.join(", ")}`)
+  process.exit(1)
+}
+
+console.log(`built ${targets.length} binaries in ${outdir}`)

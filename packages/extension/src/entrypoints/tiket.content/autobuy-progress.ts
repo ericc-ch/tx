@@ -47,8 +47,7 @@ export class AutobuyProgress extends Context.Service<AutobuyProgress>()(
       resolvedCompleted: Effect.fn(function* (customerEmail: string, page: PageKind) {
         const fromStore = completedForCustomer(yield* progressStore.get(), customerEmail)
         const index = checkoutSteps.findIndex((step) => step.page === page)
-        const fromPage =
-          index <= 0 ? ("none" as const) : checkoutSteps[index - 1]!.checkpoint
+        const fromPage = index <= 0 ? ("none" as const) : checkoutSteps[index - 1]!.checkpoint
         return furthestCheckpoint(fromStore, fromPage)
       }),
     })),

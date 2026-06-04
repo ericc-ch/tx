@@ -1,11 +1,7 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
 import { Clock, Duration, Effect, Schedule } from "effect"
-import {
-  MembershipCodeMissing,
-  MembershipCodeRejected,
-  NoPackageAvailable,
-} from "./errors"
+import { MembershipCodeMissing, MembershipCodeRejected, NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
   /^(pilih|select|pilih tiket|select ticket|verifikasi kode|verify code)$/i
@@ -23,7 +19,6 @@ const DEFAULT_CATEGORY_PRIORITY = ["cat 6", "last forever fan", "festival", "cat
 const quantitySettleSchedule = Schedule.spaced(Duration.millis(100)).pipe(
   Schedule.both(Schedule.during(Duration.seconds(2))),
 )
-
 
 const isUnavailableModalVisible = (page: Page) =>
   page
@@ -79,9 +74,7 @@ const waitForPostVerifyOutcome = (page: Page, sheet: Locator) =>
         const quantityEditor = sheet
           .locator('[data-testid^="ticket-qty-editor-"]')
           .filter({ visible: true })
-        return (
-          (yield* quantityInput.count()) > 0 || (yield* quantityEditor.count()) > 0
-        )
+        return (yield* quantityInput.count()) > 0 || (yield* quantityEditor.count()) > 0
       }),
     },
   ])

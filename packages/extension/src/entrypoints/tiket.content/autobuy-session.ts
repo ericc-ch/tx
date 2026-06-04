@@ -75,11 +75,13 @@ export const acquireCustomer = Effect.gen(function* () {
   let poolWasEmpty = false
 
   while (true) {
-    const response = yield* client.ClaimCustomer({ browserId }).pipe(
-      Effect.tapError((error) =>
-        Effect.logWarning("ClaimCustomer RPC failed for", browserId, "—", error),
-      ),
-    )
+    const response = yield* client
+      .ClaimCustomer({ browserId })
+      .pipe(
+        Effect.tapError((error) =>
+          Effect.logWarning("ClaimCustomer RPC failed for", browserId, "—", error),
+        ),
+      )
     if ("empty" in response) {
       if (!poolWasEmpty) {
         yield* Effect.logInfo("Customer pool empty, waiting for customers...")

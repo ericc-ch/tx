@@ -1,12 +1,6 @@
 export const normalizePath = (pathname: string) => pathname.replace(/\/$/, "") || "/"
 
-export type PageKind =
-  | "overview"
-  | "packages"
-  | "order"
-  | "payment"
-  | "payment-confirm"
-  | "unknown"
+export type PageKind = "overview" | "packages" | "order" | "payment" | "payment-confirm" | "unknown"
 
 export const pageKind = (location: Pick<Location, "pathname">): PageKind => {
   const base = normalizePath(location.pathname)

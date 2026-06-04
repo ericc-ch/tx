@@ -30,15 +30,7 @@ export const RpcHandlers = ServerRpcs.toLayer(
           const resolved = yield* pool.resolve(browserId, key)
           if (!resolved) return
 
-          yield* Effect.logInfo(
-            "Browser",
-            browserId,
-            outcome,
-            "customer",
-            key,
-            "—",
-            reason,
-          )
+          yield* Effect.logInfo("Browser", browserId, outcome, "customer", key, "—", reason)
         }),
       PushLogs: ({ browserId, entries }) =>
         Effect.forEach(
