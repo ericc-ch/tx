@@ -1,5 +1,5 @@
 import { CustomerStore } from "@/lib/customer-store"
-import { Duration, Effect } from "effect"
+import { Clock, Duration, Effect } from "effect"
 import { AutobuyProgress } from "./autobuy-progress"
 import {
   autobuySteps,
@@ -8,6 +8,7 @@ import {
   type AutobuyPage,
   type CheckoutCheckpoint,
 } from "./checkout-sequence"
+import { PipelineStuck, RateLimited } from "./errors"
 import * as RateLimitDialog from "./rate-limit-dialog"
 import { runOrder } from "./flow-order"
 import { runOverview } from "./flow-overview"
@@ -18,6 +19,7 @@ import { pageKind } from "./routing"
 import { waitForPageKind } from "./wait-for-page"
 
 const idleSleep = Effect.sleep(Duration.seconds(1))
+const stuckTimeout = Duration.seconds(10)
 
 const runForPage = (page: AutobuyPage) => {
   switch (page) {
@@ -43,10 +45,20 @@ export const runAutobuyPipeline = Effect.gen(function* () {
   const customer = yield* store.require()
   let completed = yield* progress.resolvedCompleted(customer.email, pageKind(location))
   let lastLoggedKey = ""
+  let lastProgressAt = yield* Clock.currentTimeMillis
 
   while (completed !== finalCheckpoint) {
+    const now = yield* Clock.currentTimeMillis
+    if (now - lastProgressAt >= Duration.toMillis(stuckTimeout)) {
+      const browserState = pageKind(location)
+      return yield* new PipelineStuck({ browserState, completedThrough: completed })
+    }
+
     if (yield* RateLimitDialog.handleIfPresent) {
-      yield* idleSleep
+      if (yield* RateLimitDialog.isPresent) {
+        return yield* new RateLimited()
+      }
+      lastProgressAt = yield* Clock.currentTimeMillis
       continue
     }
 
@@ -73,6 +85,7 @@ export const runAutobuyPipeline = Effect.gen(function* () {
 
     if (step.kind === "navigation") {
       yield* runForPage(step.page)
+      lastProgressAt = yield* Clock.currentTimeMillis
       yield* idleSleep
       continue
     }
@@ -89,5 +102,6 @@ export const runAutobuyPipeline = Effect.gen(function* () {
     yield* runForPage(step.page)
     if ("waitFor" in step) yield* waitForPageKind(step.waitFor)
     completed = yield* progress.markCompleted(customer.email, step.checkpoint)
+    lastProgressAt = yield* Clock.currentTimeMillis
   }
 })
