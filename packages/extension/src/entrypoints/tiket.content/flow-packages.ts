@@ -1,7 +1,11 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
-import { Duration, Effect, Schedule } from "effect"
-import { NoPackageAvailable } from "./errors"
+import { Clock, Duration, Effect, Schedule } from "effect"
+import {
+  MembershipCodeMissing,
+  MembershipCodeRejected,
+  NoPackageAvailable,
+} from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
   /^(pilih|select|pilih tiket|select ticket|verifikasi kode|verify code)$/i
@@ -9,12 +13,78 @@ export const PRESALE_CARD_BUTTON_TEXT = /^(verifikasi kode|verify code)$/i
 export const VERIFY_BUTTON_TEXT = /^(verifikasi kodemu|verify your code)$/i
 export const ORDER_BUTTON_TEXT = /^(pesan|book)$/i
 export const SOLD_OUT_TEXT = /^(terjual habis|sold out)$/i
+export const MEMBERSHIP_CODE_USED_TEXT =
+  /the code has been used in another transaction|kode.*sudah.*transaksi/i
+export const PACKAGE_UNAVAILABLE_MODAL_TEXT = /pick another package|pilih paket lain/i
+export const SEE_OTHER_PACKAGES_BUTTON_TEXT = /^(see other packages|lihat paket lain)$/i
 
 const DEFAULT_CATEGORY_PRIORITY = ["cat 6", "last forever fan", "festival", "cat 1"]
 
 const quantitySettleSchedule = Schedule.spaced(Duration.millis(100)).pipe(
   Schedule.both(Schedule.during(Duration.seconds(2))),
 )
+
+
+const isUnavailableModalVisible = (page: Page) =>
+  page
+    .getByText(PACKAGE_UNAVAILABLE_MODAL_TEXT)
+    .filter({ visible: true })
+    .count()
+    .pipe(Effect.map((count) => count > 0))
+
+const dismissUnavailableModal = (page: Page) =>
+  Effect.gen(function* () {
+    yield* page
+      .getByRole("button", { name: SEE_OTHER_PACKAGES_BUTTON_TEXT, disabled: false })
+      .first()
+      .click()
+    yield* Effect.logDebug("Dismissed unavailable package modal")
+  })
+
+const pollUntil = (
+  timeout: Duration.Duration,
+  outcomes: ReadonlyArray<{ tag: string; when: Effect.Effect<boolean> }>,
+) =>
+  Effect.gen(function* () {
+    const deadline = (yield* Clock.currentTimeMillis) + Duration.toMillis(timeout)
+    while ((yield* Clock.currentTimeMillis) < deadline) {
+      for (const outcome of outcomes) {
+        if (yield* outcome.when) return outcome.tag
+      }
+      yield* Effect.sleep(Duration.millis(100))
+    }
+    return "timeout"
+  })
+
+const waitForSheetOrUnavailableModal = (page: Page, sheet: Locator) =>
+  pollUntil(Duration.seconds(3), [
+    { tag: "unavailable", when: isUnavailableModalVisible(page) },
+    { tag: "sheet", when: sheet.count().pipe(Effect.map((count) => count > 0)) },
+  ])
+
+const waitForPostVerifyOutcome = (page: Page, sheet: Locator) =>
+  pollUntil(Duration.seconds(5), [
+    { tag: "unavailable", when: isUnavailableModalVisible(page) },
+    {
+      tag: "code-used",
+      when: sheet
+        .getByText(MEMBERSHIP_CODE_USED_TEXT)
+        .count()
+        .pipe(Effect.map((count) => count > 0)),
+    },
+    {
+      tag: "ready",
+      when: Effect.gen(function* () {
+        const quantityInput = sheet.locator('input[type="number"]').filter({ visible: true })
+        const quantityEditor = sheet
+          .locator('[data-testid^="ticket-qty-editor-"]')
+          .filter({ visible: true })
+        return (
+          (yield* quantityInput.count()) > 0 || (yield* quantityEditor.count()) > 0
+        )
+      }),
+    },
+  ])
 
 export const runPackages = Effect.gen(function* () {
   const store = yield* CustomerStore
@@ -25,7 +95,6 @@ export const runPackages = Effect.gen(function* () {
 
   const page = new Page(document)
 
-  // Wait for the first package card to be visible, otherwise available packages resolve to 0
   const cards = page.getByTestId("package-card").filter({ visible: true })
   yield* cards.first().waitFor({ state: "visible" })
 
@@ -36,9 +105,10 @@ export const runPackages = Effect.gen(function* () {
     .getByRole("button", { name: PRESALE_CARD_BUTTON_TEXT, disabled: false })
     .first()
 
-  let isPresalePage = false
-  if ((yield* presaleButton.count()) > 0) {
-    isPresalePage = true
+  let isPresalePage = (yield* presaleButton.count()) > 0
+
+  if (isPresalePage && customer.membershipCode.trim().length === 0) {
+    return yield* new MembershipCodeMissing()
   }
 
   const available: Array<{
@@ -96,18 +166,18 @@ export const runPackages = Effect.gen(function* () {
 
     yield* match.selectButton.click()
     yield* Effect.logDebug("Opening", match.title)
-    yield* sheet.waitFor({ state: "visible" })
+
+    const openOutcome = yield* waitForSheetOrUnavailableModal(page, sheet)
+    if (openOutcome === "unavailable") {
+      yield* dismissUnavailableModal(page)
+      continue
+    }
+    if (openOutcome === "timeout") {
+      yield* Effect.logDebug("Timed out opening sheet for", match.title)
+      continue
+    }
 
     if (isPresalePage) {
-      if (!customer.membershipCode) {
-        yield* Effect.logDebug(
-          "Presale code required but no membership code configured for",
-          match.title,
-        )
-        yield* closeSheet
-        continue
-      }
-
       yield* Effect.logDebug("Verifying presale code for", match.title)
       const codeInput = sheet.locator('input[type="text"]').filter({ visible: true }).first()
       yield* codeInput.fill(customer.membershipCode)
@@ -115,6 +185,21 @@ export const runPackages = Effect.gen(function* () {
         .getByRole("button", { name: VERIFY_BUTTON_TEXT, disabled: false })
         .first()
         .click()
+
+      const verifyOutcome = yield* waitForPostVerifyOutcome(page, sheet)
+      if (verifyOutcome === "code-used") {
+        return yield* new MembershipCodeRejected()
+      }
+      if (verifyOutcome === "unavailable") {
+        yield* dismissUnavailableModal(page)
+        yield* closeSheet
+        continue
+      }
+      if (verifyOutcome === "timeout") {
+        yield* Effect.logDebug("Timed out verifying presale code for", match.title)
+        yield* closeSheet
+        continue
+      }
     }
 
     const quantityInput = sheet.locator('input[type="number"]').filter({ visible: true }).first()
