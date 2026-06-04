@@ -541,18 +541,10 @@ export class Page {
   }
 }
 
-const isRetriablePollError = (error: unknown) => {
-  if (typeof error !== "object" || error === null || !("_tag" in error)) return false
-  switch (error._tag) {
-    case "ElementNotFound":
-    case "StateNotMet":
-      return true
-    case "NotInteractable":
-      return (error as NotInteractable).reason !== "wrong-element"
-    default:
-      return false
-  }
-}
+const isRetriablePollError = (error: unknown) =>
+  error instanceof ElementNotFound ||
+  error instanceof StateNotMet ||
+  (error instanceof NotInteractable && error.reason !== "wrong-element")
 
 const poll = <A, E>(
   attempt: Effect.Effect<A, E>,
