@@ -15,12 +15,13 @@ Think at scale, a single server can hosts many (100+) browser instance at once.
 
 Minimize nesting.
 
-Use pnpm as package manager.
-Node.js can run `.ts` (see `package.json`) files directly (no need for ts-node or tsx).
+Use Bun as package manager (`bun install`, workspaces in root `package.json`).
+Run first-party `.ts` with Bun (`bun path/to/file.ts`, `#!/usr/bin/env bun`). Use `node:` imports only, no Bun-specific runtime APIs (`Bun.file`, etc.) except in `packages/server/scripts/build.ts` for compiled binaries.
+Third-party CLIs (vitest, `tsc`, wxt) keep their own shebangs; do not switch to `bun test`.
 
 Never explicitly write types unless needed. Prefer type inference.
 
-Run `pnpm run check` after completing a task (typecheck per package, `vitest` at workspace root, lint and format at workspace root).
+Run `bun run check` after completing a task (typecheck per package, `vitest` at workspace root, lint and format at workspace root).
 
 Prefer inline code. Extract a function or helper only when it is reused or when duplication would be worse than the indirection. Do not split logic into small named pieces “for structure”. One straightforward flow is easier to read than a file of one-liner wrappers.
 

@@ -1,8 +1,0 @@
-packages:
-  - "packages/*"
-
-allowBuilds:
-  esbuild: false
-  msgpackr-extract: false
-  simple-git-hooks: false
-  spawn-sync: false
