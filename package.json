@@ -44,6 +44,5 @@
   "simple-git-hooks": {
     "pre-commit": "bun run check"
   },
-  "packageManager": "bun@1.3.14",
-  "trustedDependencies": []
+  "packageManager": "bun@1.3.14"
 }

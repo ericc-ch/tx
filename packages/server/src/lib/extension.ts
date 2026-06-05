@@ -21,8 +21,7 @@ export const resolveBrowserExtensionPath = Effect.fn("resolveBrowserExtensionPat
     const dir = path.resolve(path.dirname(libPath), "../../../extension/.output/chrome-mv2")
     if (!(yield* fs.exists(path.join(dir, "manifest.json")))) {
       return yield* new ExtensionNotAvailable({
-        message:
-          "Extension not built. Run: bun run --filter @tx/extension build",
+        message: "Extension not built. Run: bun run --filter @tx/extension build",
       })
     }
     return dir
@@ -35,8 +34,8 @@ export const resolveBrowserExtensionPath = Effect.fn("resolveBrowserExtensionPat
     return installDir
   }
 
-  const { default: archivePath } = yield* Effect.promise(() =>
-    import("../assets/extension.tar.gz", { with: { type: "file" } }),
+  const { default: archivePath } = yield* Effect.promise(
+    () => import("../assets/extension.tar.gz", { with: { type: "file" } }),
   )
   const archiveBytes = yield* fs.readFile(archivePath)
 

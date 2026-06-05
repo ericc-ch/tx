@@ -9,7 +9,7 @@
     "build": "wxt build",
     "zip": "wxt zip",
     "typecheck": "tsc --noEmit",
-    "postinstall": "wxt prepare"
+    "prepare": "wxt prepare"
   },
   "dependencies": {
     "@effect/platform-browser": "catalog:effect",
@@ -20,8 +20,8 @@
   "devDependencies": {
     "@effect/platform-node": "catalog:effect",
     "@effect/vitest": "catalog:effect",
-    "vitest": "catalog:",
     "@wxt-dev/module-solid": "^1.1.4",
+    "vitest": "catalog:",
     "wxt": "^0.20.26"
   }
 }

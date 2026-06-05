@@ -20,8 +20,7 @@
   },
   "scripts": {
     "build": "bun --env-file=.env.production scripts/build.ts",
-    "prepack": "bun run build",
-    "dev": "NODE_ENV=development bun --env-file=.env.dev src/cli.ts",
+    "dev": "bun --env-file=.env.dev src/cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

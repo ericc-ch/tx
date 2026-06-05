@@ -20,7 +20,11 @@ const walk = async (root: string, prefix = "") => {
 }
 
 console.log("building extension (wxt)")
-const wxt = Bun.spawn(["bun", "run", "build"], { cwd: extensionPackage, stdout: "inherit", stderr: "inherit" })
+const wxt = Bun.spawn(["bun", "run", "build"], {
+  cwd: extensionPackage,
+  stdout: "inherit",
+  stderr: "inherit",
+})
 if ((await wxt.exited) !== 0) {
   console.error("extension build failed")
   process.exit(1)

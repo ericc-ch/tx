@@ -1,5 +1,15 @@
 import envPaths from "env-paths"
-import { Config, ConfigProvider, Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
+import {
+  Config,
+  ConfigProvider,
+  Context,
+  Effect,
+  FileSystem,
+  Layer,
+  Path,
+  Predicate,
+  Schema,
+} from "effect"
 
 const discordWebhookUrlConfig = Config.schema(Schema.NonEmptyString, "DISCORD_WEBHOOK_URL")
 
