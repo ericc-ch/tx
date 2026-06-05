@@ -34,12 +34,16 @@ for (const { target, outfile } of targets) {
 
   const result = await Bun.build({
     entrypoints: [entrypoint],
+    define: {
+      "process.env.NODE_ENV": JSON.stringify("production"),
+    },
     compile: {
       target,
       outfile,
       autoloadBunfig: false,
       autoloadDotenv: false,
     },
+    format: "esm",
     minify: true,
     bytecode: true,
   })
