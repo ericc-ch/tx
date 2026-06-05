@@ -12,14 +12,15 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@effect/platform-browser": "^4.0.0-beta.66",
+    "@effect/platform-browser": "catalog:effect",
     "@tx/server": "workspace:*",
-    "effect": "^4.0.0-beta.66",
+    "effect": "catalog:effect",
     "solid-js": "^1.9.11"
   },
   "devDependencies": {
-    "@effect/platform-node": "^4.0.0-beta.66",
-    "@effect/vitest": "^4.0.0-beta.66",
+    "@effect/platform-node": "catalog:effect",
+    "@effect/vitest": "catalog:effect",
+    "vitest": "catalog:",
     "@wxt-dev/module-solid": "^1.1.4",
     "wxt": "^0.20.26"
   }
