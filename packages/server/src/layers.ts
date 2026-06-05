@@ -12,15 +12,13 @@ import { ServerRpcs } from "./rpc/schema.ts"
 const RpcLive = RpcServer.layerHttp({ group: ServerRpcs, path: "/rpc", protocol: "http" }).pipe(
   Layer.provide(RpcHandlers),
   Layer.provideMerge(RpcSerialization.layerNdjson),
+  Layer.provide(CustomerPool.layer.pipe(Layer.provide(TxConfig.layer))),
 )
 
-export const ServerLive = HttpRouter.serve(RpcLive, { disableLogger: true }).pipe(
+const ServerLive = HttpRouter.serve(RpcLive, { disableLogger: true }).pipe(
   Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port: 0 })),
 )
 
-const AppServicesLive = Layer.mergeAll(CustomerPool.layer, BrowserLauncher.layer)
-
 export const TiketLive = ServerLive.pipe(
-  Layer.provideMerge(AppServicesLive),
-  Layer.provideMerge(TxConfig.layer),
+  Layer.provideMerge(BrowserLauncher.layer.pipe(Layer.provide(TxConfig.layer))),
 )
