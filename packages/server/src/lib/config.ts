@@ -1,5 +1,7 @@
 import envPaths from "env-paths"
-import { Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
+import { Config, Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
+
+const discordWebhookUrlConfig = Config.schema(Schema.NonEmptyString, "DISCORD_WEBHOOK_URL")
 const CONFIG_FILE_NAME = "config.json"
 export const PROFILE_TEMPLATE_DIRECTORY = "__profile-template"
 const txEnvPaths = envPaths("tx")
@@ -9,7 +11,6 @@ export const TxConfigSchema = Schema.Struct({
   customerDataPath: Schema.String,
   userDataDir: Schema.optional(Schema.NonEmptyString),
   copyUserDataDirToTmp: Schema.optional(Schema.Boolean),
-  discordWebhookUrl: Schema.optional(Schema.String),
   $schema: Schema.optional(Schema.String),
 })
 
@@ -61,7 +62,9 @@ export class TxConfig extends Context.Service<TxConfig>()("@tx/server/TxConfig",
 
     yield* fs.makeDirectory(paths.userDataDir, { recursive: true })
 
-    return { config, paths }
+    const discordWebhookUrl = yield* discordWebhookUrlConfig
+
+    return { config, paths, discordWebhookUrl }
   }),
 }) {
   static layer = Layer.effect(this, this.make())

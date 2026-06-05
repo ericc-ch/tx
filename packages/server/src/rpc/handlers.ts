@@ -7,7 +7,7 @@ import { ServerRpcs } from "./schema.ts"
 export const RpcHandlers = ServerRpcs.toLayer(
   Effect.gen(function* () {
     const pool = yield* CustomerPool
-    const { config } = yield* TxConfig
+    const { discordWebhookUrl } = yield* TxConfig
     const poolEmptyLoggedForBrowser = new Set<string>()
 
     return ServerRpcs.of({
@@ -62,12 +62,6 @@ export const RpcHandlers = ServerRpcs.toLayer(
         screenshotBase64,
       }) =>
         Effect.gen(function* () {
-          const webhookUrl = config.discordWebhookUrl?.trim()
-          if (!webhookUrl) {
-            yield* Effect.logDebug("discordWebhookUrl not set, skipping payment notify")
-            return
-          }
-
           yield* Effect.logDebug(
             "Payment notify sending",
             browserId,
@@ -77,7 +71,7 @@ export const RpcHandlers = ServerRpcs.toLayer(
           )
 
           yield* sendPaymentConfirm({
-            webhookUrl,
+            webhookUrl: discordWebhookUrl,
             virtualAccount,
             customerEmail,
             paymentMethod,

@@ -76,6 +76,7 @@ const withPool = (customers: ReadonlyArray<(typeof sampleCustomers)[number]>) =>
                 userDataDir: dir,
                 templateDir: path.join(dir, "__profile-template"),
               },
+              discordWebhookUrl: "https://discord.com/api/webhooks/0/test",
             }),
           ),
         ),

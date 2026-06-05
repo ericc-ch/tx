@@ -3,6 +3,14 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 const serverPackage = join(dirname(fileURLToPath(import.meta.url)), "..")
+
+const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL?.trim()
+if (!discordWebhookUrl) {
+  console.error(
+    "DISCORD_WEBHOOK_URL is required — copy .env.example to .env.production or run with bun --env-file=.env.production",
+  )
+  process.exit(1)
+}
 const entrypoint = join(serverPackage, "src/cli.ts")
 const outdir = join(serverPackage, "dist")
 const buildExtensionArchive = join(serverPackage, "scripts/build-extension-archive.ts")
@@ -36,6 +44,7 @@ for (const { target, outfile } of targets) {
     entrypoints: [entrypoint],
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
+      "process.env.DISCORD_WEBHOOK_URL": JSON.stringify(discordWebhookUrl),
     },
     compile: {
       target,
