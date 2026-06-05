@@ -2,6 +2,7 @@ import { Context, Effect, FileSystem, Layer, Path, References, Schema } from "ef
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
 import { PROFILE_TEMPLATE_DIRECTORY, TxConfig } from "./config.ts"
+import { resolveBrowserExtensionPath } from "./extension.ts"
 import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "../rpc/schema.ts"
 
 interface BrowserEntry {
@@ -33,7 +34,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
       const path = yield* Path.Path
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
       const { config, paths } = yield* TxConfig
-      const { configFilePath } = paths
+      const browserExtensionPath = yield* resolveBrowserExtensionPath().pipe(Effect.orDie)
       let { userDataDir, templateDir } = paths
       const browsers = new Map<string, BrowserEntry>()
       let nextBrowserIndex = 1
@@ -52,23 +53,6 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
         )
         userDataDir = tmpUserDataDir
         templateDir = path.join(tmpUserDataDir, PROFILE_TEMPLATE_DIRECTORY)
-      }
-
-      if (config.browserExtensionPath.length === 0) {
-        return yield* Effect.die(
-          new Error(
-            `browserExtensionPath is not set in ${configFilePath}. Run: bun run --filter @tx/extension build, then set the path in config.`,
-          ),
-        )
-      }
-
-      const extensionExists = yield* fs.exists(config.browserExtensionPath)
-      if (!extensionExists) {
-        return yield* Effect.die(
-          new Error(
-            `Built extension not found at ${config.browserExtensionPath}. Run: bun run --filter @tx/extension build, then update ${configFilePath}.`,
-          ),
-        )
       }
 
       const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
@@ -106,7 +90,7 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
         const command = ChildProcess.make(config.browserExecutable, [
           `--user-data-dir=${userDataDir}`,
           `--profile-directory=${browserId}`,
-          `--load-extension=${config.browserExtensionPath}`,
+          `--load-extension=${browserExtensionPath}`,
           ...browserSwitches,
           urlWithInit.toString(),
         ])

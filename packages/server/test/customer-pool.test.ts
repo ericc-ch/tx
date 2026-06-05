@@ -68,7 +68,6 @@ const withPool = (customers: ReadonlyArray<(typeof sampleCustomers)[number]>) =>
             Layer.succeed(TxConfig, {
               config: {
                 browserExecutable: "helium",
-                browserExtensionPath: "",
                 customerDataPath: file,
               },
               paths: {

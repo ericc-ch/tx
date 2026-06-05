@@ -21,14 +21,15 @@
   "scripts": {
     "build": "bun scripts/build.ts",
     "prepack": "bun run build",
-    "dev": "bun src/cli.ts",
+    "dev": "NODE_ENV=development bun src/cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@effect/platform-node": "^4.0.0-beta.66",
     "effect": "^4.0.0-beta.66",
     "env-paths": "^4.0.0",
-    "open": "^11.0.0"
+    "open": "^11.0.0",
+    "tar": "^7.5.2"
   },
   "devDependencies": {
     "@effect/vitest": "^4.0.0-beta.66",

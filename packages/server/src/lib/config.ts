@@ -1,13 +1,11 @@
 import envPaths from "env-paths"
 import { Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
-
 const CONFIG_FILE_NAME = "config.json"
 export const PROFILE_TEMPLATE_DIRECTORY = "__profile-template"
 const txEnvPaths = envPaths("tx")
 
 export const TxConfigSchema = Schema.Struct({
   browserExecutable: Schema.String,
-  browserExtensionPath: Schema.String,
   customerDataPath: Schema.String,
   userDataDir: Schema.optional(Schema.NonEmptyString),
   copyUserDataDirToTmp: Schema.optional(Schema.Boolean),
@@ -19,7 +17,6 @@ const TxConfigFile = Schema.fromJsonString(TxConfigSchema)
 
 const defaultConfig = {
   browserExecutable: "helium",
-  browserExtensionPath: "",
   customerDataPath: "",
 } satisfies typeof TxConfigSchema.Type
 
