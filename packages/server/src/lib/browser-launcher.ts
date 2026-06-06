@@ -55,6 +55,13 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
         templateDir = path.join(tmpUserDataDir, PROFILE_TEMPLATE_DIRECTORY)
       }
 
+      const hasTemplate = yield* fs.exists(templateDir)
+      if (!hasTemplate) {
+        yield* Effect.logInfo(
+          `No template profile at ${templateDir}; browsers will start with fresh profiles`,
+        )
+      }
+
       const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
         const browserId = yield* Effect.sync(() => {
           const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
@@ -62,18 +69,11 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
           return `${port}-${nextBrowserIndex++}-${adjective}-${noun}`
         })
 
-        const templateExists = yield* fs.exists(templateDir)
-        if (!templateExists) {
-          return yield* Effect.die(
-            new Error(
-              `Template profile not found at ${templateDir}. Create one with: tx tiket template create`,
-            ),
-          )
-        }
-
         const profilePath = path.join(userDataDir, browserId)
-        yield* fs.copy(templateDir, profilePath)
-        yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
+        if (hasTemplate) {
+          yield* fs.copy(templateDir, profilePath)
+          yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
+        }
 
         const minimumLogLevel = yield* References.MinimumLogLevel
         const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({
