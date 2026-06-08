@@ -1,14 +1,19 @@
 import { Effect, Formatter } from "effect"
-import { CustomerPool } from "../lib/customer-pool.ts"
-import { sendPaymentConfirm } from "../lib/discord-notify.ts"
 import { TxConfig } from "../lib/config.ts"
+import { Discord } from "../lib/discord.ts"
+import { discordWebhook, type WebhookMessage } from "../lib/discord-webhook.ts"
+import { CustomerPool } from "../lib/customer-pool.ts"
 import { ServerRpcs } from "./schema.ts"
 
 export const RpcHandlers = ServerRpcs.toLayer(
   Effect.gen(function* () {
     const pool = yield* CustomerPool
     const { discordWebhookUrl } = yield* TxConfig
+    const discord = yield* Discord
     const poolEmptyLoggedForBrowser = new Set<string>()
+
+    const sendWebhook = (message: WebhookMessage) =>
+      discord.execute(discordWebhookUrl, message)
 
     return ServerRpcs.of({
       ClaimCustomer: ({ browserId }) =>
@@ -70,14 +75,19 @@ export const RpcHandlers = ServerRpcs.toLayer(
             virtualAccount,
           )
 
-          yield* sendPaymentConfirm({
-            webhookUrl: discordWebhookUrl,
-            virtualAccount,
-            customerEmail,
-            paymentMethod,
-            screenshotBase64,
-          })
+          const message = discordWebhook()
+            .embed({
+              fields: [
+                { name: "Email", value: customerEmail },
+                { name: "Payment", value: paymentMethod },
+                { name: "VA", value: virtualAccount },
+              ],
+              image: { url: "attachment://payment.png" },
+            })
+            .file("payment.png", Buffer.from(screenshotBase64, "base64"), "image/png")
+            .build()
 
+          yield* sendWebhook(message)
           yield* Effect.logInfo("Payment notify sent", browserId, customerEmail, virtualAccount)
         }).pipe(
           Effect.tapError((error) =>
