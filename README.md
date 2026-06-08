@@ -17,7 +17,7 @@ tx is split into three pieces:
 Typical flow:
 
 1. Prepare a customer list (CSV or JSON).
-2. Configure the CLI (browser executable, Discord webhook).
+2. Configure the CLI (browser executable).
 3. Optionally create a browser profile template (logged-in Tiket session shared across instances).
 4. Run `tx tiket start` with an event URL — the CLI opens browser(s), the extension claims a customer and runs the autobuy pipeline.
 
@@ -29,21 +29,18 @@ The extension also handles:
 ## Prerequisites
 
 - **[Helium](https://github.com/imputnet/helium)** — recommended browser. tx defaults to the `helium` executable on your `PATH`. Any Chromium-based browser with `--load-extension` support can work if you set `browserExecutable` in config.
-- **Discord webhook URL** — required for payment confirmations and queue alerts. Create one in your Discord server under _Server Settings → Integrations → Webhooks_.
 - **Customer data** — a CSV export or JSON file (see [Customer data](#customer-data)).
 
 ## Installation
 
 ### Pre-built binary (recommended)
 
-Build release binaries from the repo (requires Bun):
+Build release binaries from the repo (requires Bun). See [CONTRIBUTING.md](CONTRIBUTING.md) for build-time env (Discord webhook).
 
 ```bash
 git clone https://github.com/ericc-ch/tx.git
 cd tx
 bun install
-cp packages/cli/.env.example packages/cli/.env.production
-# Edit .env.production and set DISCORD_WEBHOOK_URL
 bun run --filter @tx/cli build
 ```
 
@@ -118,19 +115,6 @@ Open the config file in your default editor:
 
 ```bash
 tx debug config open
-```
-
-### Discord webhook
-
-`DISCORD_WEBHOOK_URL` must be set:
-
-- **Pre-built binary** — baked in at compile time via `packages/cli/.env.production`.
-- **Dev mode** — loaded from `packages/cli/.env.dev`.
-
-Copy `packages/cli/.env.example` as a starting point:
-
-```
-DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/0000000000000000000/your-token-here
 ```
 
 ## Customer data
@@ -384,17 +368,6 @@ The pool server watches the customer file for changes and hot-reloads new rows (
 tx tiket start --server-url http://pool-host:3847 -n 10 "<event-url>"
 ```
 
-## Discord notifications
-
-tx sends two kinds of alerts via the configured webhook:
-
-| Event               | Content                                                                                         |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| **Payment confirm** | Embed with customer email, payment method, VA number, and a screenshot of the confirmation page |
-| **Queue alert**     | Transfer URL when queue position drops below 1,000 on `queue.tiket.com`                         |
-
-Queue alerts are sent once per queue session (deduplicated in extension local storage).
-
 ## Command reference
 
 Every command, flag, and argument has a description in source and in `--help` output. Run `tx <command> --help` (or `tx <command> <subcommand> --help`) for the canonical reference including examples.
@@ -488,6 +461,5 @@ Paths, resolved config, and JSON Schemas. Does not start browsers.
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development setup and architecture
 - [Helium browser](https://github.com/imputnet/helium) — recommended Chromium fork
 - [Helium releases](https://github.com/imputnet/helium/releases) — download binaries
-- [Discord webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) — set up notifications
 - [tiket.com](https://www.tiket.com) — target site
 - [Repository](https://github.com/ericc-ch/tx) — source and issues

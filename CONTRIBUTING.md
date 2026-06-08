@@ -5,7 +5,8 @@ Development setup and workspace reference for tx. For using the CLI and extensio
 ## Prerequisites
 
 - **[Bun](https://bun.sh)** 1.3+
-- Everything in [README — Prerequisites](README.md#prerequisites) (Helium, Discord webhook, customer data)
+- Everything in [README — Prerequisites](README.md#prerequisites) (Helium, customer data)
+- **Discord webhook URL** — required for payment confirmations and queue alerts. Create one in your Discord server under _Server Settings → Integrations → Webhooks_. See [Discord webhook](#discord-webhook) below.
 
 ## From source
 
@@ -14,7 +15,7 @@ git clone https://github.com/ericc-ch/tx.git
 cd tx
 bun install
 cp packages/cli/.env.example packages/cli/.env.dev
-# Edit .env.dev and set DISCORD_WEBHOOK_URL
+# Edit .env.dev — see Discord webhook below
 ```
 
 Start the extension in watch mode (required for `bun run dev` — the CLI loads from `packages/extension/.output/chrome-mv2-dev/`):
@@ -31,7 +32,27 @@ bun run --filter @tx/cli dev -- <subcommand>
 bun run --filter @tx/cli dev -- tiket start --customer-data ./customers.json "https://www.tiket.com/to-do/..."
 ```
 
-Dev mode loads `packages/cli/.env.dev` for `DISCORD_WEBHOOK_URL`.
+## Discord webhook
+
+`DISCORD_WEBHOOK_URL` must be set before running or building the CLI:
+
+- **Dev mode** — `packages/cli/.env.dev` (loaded by `bun run dev`)
+- **Release build** — `packages/cli/.env.production` (baked into compiled binaries by `bun run --filter @tx/cli build`)
+
+Copy `packages/cli/.env.example` as a starting point:
+
+```
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/0000000000000000000/your-token-here
+```
+
+tx sends two kinds of alerts:
+
+| Event               | Content                                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| **Payment confirm** | Embed with customer email, payment method, VA number, and a screenshot of the confirmation page |
+| **Queue alert**     | Transfer URL when queue position drops below 1,000 on `queue.tiket.com`                         |
+
+Queue alerts are sent once per queue session (deduplicated in extension local storage).
 
 ## Workspace layout
 
