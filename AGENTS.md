@@ -16,7 +16,7 @@ Think at scale, a single server can hosts many (100+) browser instance at once.
 Minimize nesting.
 
 Use Bun as package manager (`bun install`, workspaces in root `package.json`).
-Run first-party `.ts` with Bun (`bun path/to/file.ts`, `#!/usr/bin/env bun`). Use `node:` imports only, no Bun-specific runtime APIs (`Bun.file`, etc.) except in `packages/server/scripts/build.ts` for compiled binaries.
+Run first-party `.ts` with Bun (`bun path/to/file.ts`, `#!/usr/bin/env bun`). Use `node:` imports only, no Bun-specific runtime APIs (`Bun.file`, etc.) except in `packages/cli/scripts/build.ts` for compiled binaries.
 Third-party CLIs (vitest, `tsc`, wxt) keep their own shebangs; do not switch to `bun test`.
 
 Never explicitly write types unless needed. Prefer type inference.
@@ -40,7 +40,8 @@ Reserve unit tests for server-side logic with non-obvious transforms or edge cas
 
 ## Workspace
 
-- `packages/server` — CLI / RPC server
+- `packages/pool-server` — customer pool RPC server
+- `packages/cli` — operator CLI
 - `packages/extension` — browser extension
 
 # References Directory

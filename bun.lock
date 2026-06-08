@@ -15,12 +15,29 @@
         "vitest": "catalog:",
       },
     },
+    "packages/cli": {
+      "name": "@tx/cli",
+      "version": "0.0.1",
+      "dependencies": {
+        "@effect/platform-node": "catalog:effect",
+        "@tx/pool-server": "workspace:*",
+        "@tx/schema": "workspace:*",
+        "effect": "catalog:effect",
+        "env-paths": "^4.0.0",
+        "open": "^11.0.0",
+        "tar": "^7.5.2",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@types/node": "catalog:",
+      },
+    },
     "packages/extension": {
       "name": "@tx/extension",
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-browser": "catalog:effect",
-        "@tx/server": "workspace:*",
+        "@tx/schema": "workspace:*",
         "effect": "catalog:effect",
         "solid-js": "^1.9.11",
       },
@@ -32,15 +49,13 @@
         "wxt": "^0.20.26",
       },
     },
-    "packages/server": {
-      "name": "@tx/server",
+    "packages/pool-server": {
+      "name": "@tx/pool-server",
       "version": "0.0.1",
       "dependencies": {
         "@effect/platform-node": "catalog:effect",
+        "@tx/schema": "workspace:*",
         "effect": "catalog:effect",
-        "env-paths": "^4.0.0",
-        "open": "^11.0.0",
-        "tar": "^7.5.2",
       },
       "devDependencies": {
         "@effect/vitest": "catalog:effect",
@@ -48,6 +63,13 @@
         "@types/node": "catalog:",
         "@types/papaparse": "^5.5.2",
         "papaparse": "^5.5.3",
+      },
+    },
+    "packages/schema": {
+      "name": "@tx/schema",
+      "version": "0.0.1",
+      "dependencies": {
+        "effect": "catalog:effect",
       },
     },
   },
@@ -352,9 +374,13 @@
 
     "@standard-schema/spec": ["@standard-schema/spec@1.1.0", "", {}, "sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w=="],
 
+    "@tx/cli": ["@tx/cli@workspace:packages/cli"],
+
     "@tx/extension": ["@tx/extension@workspace:packages/extension"],
 
-    "@tx/server": ["@tx/server@workspace:packages/server"],
+    "@tx/pool-server": ["@tx/pool-server@workspace:packages/pool-server"],
+
+    "@tx/schema": ["@tx/schema@workspace:packages/schema"],
 
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.1", "", { "dependencies": { "tslib": "2.8.1" } }, "sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg=="],
 

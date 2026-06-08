@@ -1,6 +1,10 @@
 {
   "files": [],
-  "references": [{ "path": "./packages/server/" }, { "path": "./tsconfig.tools.json" }],
+  "references": [
+    { "path": "./packages/schema/" },
+    { "path": "./packages/pool-server/" },
+    { "path": "./tsconfig.tools.json" }
+  ],
 
   "compilerOptions": {
     "target": "ESNext",
