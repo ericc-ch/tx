@@ -6,7 +6,7 @@ import { autobuyFailureReason, RateLimited } from "./errors"
 import { resetToOverview } from "./flow-overview"
 import { Duration, Effect, Option, Result } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
-import { customerKey, ServerRpcs, type Customer } from "@tx/server/schema"
+import { customerKey, OperatorRpcs, type Customer } from "@tx/schema"
 
 const requireBrowserId = Effect.gen(function* () {
   const init = yield* Init
@@ -23,7 +23,7 @@ const resolveCustomer = (
   reason: string,
 ) =>
   Effect.gen(function* () {
-    const client = yield* RpcClient.make(ServerRpcs)
+    const client = yield* RpcClient.make(OperatorRpcs)
     const browserId = yield* requireBrowserId
 
     yield* client.ResolveCustomer({
@@ -69,7 +69,7 @@ export const acquireCustomer = Effect.gen(function* () {
     return existing.value
   }
 
-  const client = yield* RpcClient.make(ServerRpcs)
+  const client = yield* RpcClient.make(OperatorRpcs)
   const browserId = yield* requireBrowserId
 
   let poolWasEmpty = false

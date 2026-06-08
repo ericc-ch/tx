@@ -1,4 +1,4 @@
-import { Customer } from "@tx/server/schema"
+import { Customer } from "@tx/schema"
 import { Context, Data, Effect, Layer, Option } from "effect"
 import { makePersistedStore } from "./storage"
 

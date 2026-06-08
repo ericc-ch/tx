@@ -1,4 +1,4 @@
-import { INIT_PAYLOAD_PARAM, InitPayload, InitPayloadFromUrlParam } from "@tx/server/schema"
+import { INIT_PAYLOAD_PARAM, InitPayload, InitPayloadFromUrlParam } from "@tx/schema"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import { browser } from "wxt/browser"
 import { makePersistedStore } from "./storage"

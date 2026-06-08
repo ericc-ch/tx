@@ -60,6 +60,7 @@ export const RpcClientLayer = Layer.effect(
 export const registerRpcTunnel = Effect.gen(function* () {
   const http = yield* HttpClient.HttpClient
   const init = yield* Init
+  const context = yield* Effect.context()
 
   yield* Effect.sync(() => {
     browser.runtime.onMessage.addListener((message, sender) => {
@@ -94,7 +95,7 @@ export const registerRpcTunnel = Effect.gen(function* () {
           Effect.flatMap((res) => res.text),
           Effect.tapError((error) => Effect.logWarning("RPC tunnel failed", url, "—", error)),
         )
-      }).pipe(Effect.runPromise)
+      }).pipe(Effect.provide(context), Effect.runPromise)
     })
   })
 })

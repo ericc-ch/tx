@@ -1,7 +1,7 @@
 import { Init } from "@/lib/init"
 import { ContentLive } from "@/lib/rpc"
 import { makePersistedStore } from "@/lib/storage"
-import { ServerRpcs } from "@tx/server/schema"
+import { OperatorRpcs } from "@tx/schema"
 import { BrowserRuntime } from "@effect/platform-browser"
 import { Duration, Effect, Option, Schedule, Schema } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
@@ -22,7 +22,7 @@ const program = Effect.gen(function* () {
     return
   }
 
-  const client = yield* RpcClient.make(ServerRpcs)
+  const client = yield* RpcClient.make(OperatorRpcs)
 
   yield* Effect.logDebug("Waiting for queue number")
   let queueNumber = yield* Effect.sync(() => {

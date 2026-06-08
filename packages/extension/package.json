@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@effect/platform-browser": "catalog:effect",
-    "@tx/server": "workspace:*",
+    "@tx/schema": "workspace:*",
     "effect": "catalog:effect",
     "solid-js": "^1.9.11"
   },

@@ -2,7 +2,7 @@ import { Init } from "@/lib/init"
 import { CustomerStore } from "@/lib/customer-store"
 import { captureTabScreenshot } from "@/lib/screenshot"
 import { makePersistedStore } from "@/lib/storage"
-import { ServerRpcs } from "@tx/server/schema"
+import { OperatorRpcs } from "@tx/schema"
 import { Duration, Effect, Option, Schema } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
 
@@ -42,18 +42,13 @@ export const runPaymentConfirm = Effect.gen(function* () {
     return yield* Effect.die(new Error("virtual account not found on payment confirm page"))
   }
 
-  if (!initPayload.value.notifyPayment) {
-    yield* Effect.logInfo("Payment confirm", customer.email, virtualAccount)
-    return
-  }
-
   const reported = yield* reportedVaStore.get()
   if (Option.exists(reported, (value) => value === virtualAccount)) return
 
   yield* Effect.sleep(Duration.seconds(2))
 
   const screenshotBase64 = yield* captureTabScreenshot
-  const client = yield* RpcClient.make(ServerRpcs)
+  const client = yield* RpcClient.make(OperatorRpcs)
 
   yield* client.ReportPaymentConfirm({
     browserId: initPayload.value.browserId,

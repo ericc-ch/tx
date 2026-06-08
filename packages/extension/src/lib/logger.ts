@@ -1,5 +1,5 @@
 import { Init } from "@/lib/init"
-import { ServerRpcs } from "@tx/server/schema"
+import { OperatorRpcs } from "@tx/schema"
 import { Array, Duration, Effect, Layer, Logger, Option, References } from "effect"
 import { RpcClient } from "effect/unstable/rpc"
 
@@ -28,7 +28,7 @@ const remoteLogger = Effect.gen(function* () {
     return withLogLevel(Logger.make(() => Effect.void))
   }
 
-  const client = yield* RpcClient.make(ServerRpcs)
+  const client = yield* RpcClient.make(OperatorRpcs)
   const { browserId } = initPayload.value
 
   const logger = yield* Logger.batched(remoteLogEntry, {
