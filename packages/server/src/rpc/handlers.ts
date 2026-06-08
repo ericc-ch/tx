@@ -95,6 +95,16 @@ export const RpcHandlers = ServerRpcs.toLayer(
           ),
           Effect.orDie,
         ),
+      ReportQueueAlert: ({ browserId, transferUrl }) =>
+        Effect.gen(function* () {
+          yield* sendWebhook(discordWebhook().content(transferUrl).build())
+          yield* Effect.logInfo("Queue alert sent", browserId, transferUrl)
+        }).pipe(
+          Effect.tapError((error) =>
+            Effect.logError("Queue alert failed", browserId, transferUrl, error),
+          ),
+          Effect.orDie,
+        ),
     })
   }),
 )

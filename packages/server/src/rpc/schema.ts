@@ -64,6 +64,11 @@ export const ReportPaymentConfirmPayload = Schema.Struct({
   screenshotBase64: Schema.String,
 })
 
+export const ReportQueueAlertPayload = Schema.Struct({
+  browserId: Schema.String,
+  transferUrl: Schema.String,
+})
+
 export const ServerRpcs = RpcGroup.make(
   Rpc.make("ClaimCustomer", {
     payload: ClaimCustomerReq,
@@ -79,6 +84,10 @@ export const ServerRpcs = RpcGroup.make(
   }),
   Rpc.make("ReportPaymentConfirm", {
     payload: ReportPaymentConfirmPayload,
+    success: Schema.Void,
+  }),
+  Rpc.make("ReportQueueAlert", {
+    payload: ReportQueueAlertPayload,
     success: Schema.Void,
   }),
 )
