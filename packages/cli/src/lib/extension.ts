@@ -16,21 +16,23 @@ export const resolveBrowserExtensionPath = Effect.fn("resolveBrowserExtensionPat
   const path = yield* Path.Path
   const { paths } = yield* TxConfig
 
-  if (process.env.NODE_ENV === "development") {
-    const libPath = yield* path.fromFileUrl(new URL(import.meta.url))
-    const dir = path.resolve(path.dirname(libPath), "../../../extension/.output/chrome-mv2")
-    if (!(yield* fs.exists(path.join(dir, "manifest.json")))) {
-      return yield* new ExtensionNotAvailable({
-        message: "Extension not built. Run: bun run --filter @tx/extension build",
-      })
-    }
-    return dir
+  const libPath = yield* path.fromFileUrl(new URL(import.meta.url))
+  const workspaceDir = path.resolve(
+    path.dirname(libPath),
+    "../../../extension/.output/chrome-mv2-dev",
+  )
+  const workspaceManifest = path.join(workspaceDir, "manifest.json")
+
+  if (yield* fs.exists(workspaceManifest)) {
+    yield* Effect.logDebug("Using workspace extension at", workspaceDir)
+    return workspaceDir
   }
 
   const installDir = path.join(paths.env.data, extensionDir)
   const manifestPath = path.join(installDir, "manifest.json")
 
   if (yield* fs.exists(manifestPath)) {
+    yield* Effect.logDebug("Using installed extension at", installDir)
     return installDir
   }
 

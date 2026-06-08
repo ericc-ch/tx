@@ -2,7 +2,7 @@ import { mkdir, rm } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const serverPackage = join(dirname(fileURLToPath(import.meta.url)), "..")
+const cliPackage = join(dirname(fileURLToPath(import.meta.url)), "..")
 
 const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL?.trim()
 if (!discordWebhookUrl) {
@@ -11,9 +11,9 @@ if (!discordWebhookUrl) {
   )
   process.exit(1)
 }
-const entrypoint = join(serverPackage, "src/cli.ts")
-const outdir = join(serverPackage, "dist")
-const buildExtensionArchive = join(serverPackage, "scripts/build-extension-archive.ts")
+const entrypoint = join(cliPackage, "src/main.ts")
+const outdir = join(cliPackage, "dist")
+const buildExtensionArchive = join(cliPackage, "scripts/build-extension-archive.ts")
 
 const targets = [
   { target: "bun-linux-x64", outfile: join(outdir, "tx-linux-x64") },

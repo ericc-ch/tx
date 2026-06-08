@@ -1,16 +1,19 @@
-#!/usr/bin/env bun
-
-import { NodeRuntime, NodeServices } from "@effect/platform-node"
-import { Console, Effect, FileSystem, Formatter, Path, Schema, Terminal } from "effect"
+import { NodeHttpServer } from "@effect/platform-node"
+import { OperatorRpcs } from "@tx/schema"
+import { Effect, FileSystem, Layer, Option, Path, Terminal } from "effect"
 import { Argument, Command, Flag, Prompt } from "effect/unstable/cli"
-import { HttpServer } from "effect/unstable/http"
+import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
+import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
+import { createServer } from "node:http"
 import os from "node:os"
-import open from "open"
-import packageJson from "../package.json" with { type: "json" }
-import { TiketLive } from "./layers.ts"
-import { BrowserLauncher, browserSwitches } from "./lib/browser-launcher.ts"
-import { PROFILE_TEMPLATE_DIRECTORY, TxConfig, TxConfigSchema } from "./lib/config.ts"
+import { BrowserLauncher, browserSwitches } from "../lib/browser-launcher.ts"
+import { PROFILE_TEMPLATE_DIRECTORY, TxConfig } from "../lib/config.ts"
+import { Discord } from "../lib/discord.ts"
+import { PoolUpstream } from "../lib/pool-upstream.ts"
+import { normalizePoolRpcUrl } from "../lib/pool-url.ts"
+import { SessionMap } from "../lib/session-map.ts"
+import { OperatorRpcHandlers } from "../rpc/operator-handlers.ts"
 
 const templateCreateProfileDirectory = "Draft"
 
@@ -101,7 +104,7 @@ const templateUpdateCommand = Command.make(
     yield* Effect.logInfo("Update the template, then close the browser when done")
     yield* handle.exitCode
     yield* Effect.logInfo("Template updated at", templateDir)
-  }, Effect.provide(TxConfig.layer)),
+  }, Effect.provide(TxConfig.layer), Effect.scoped),
 ).pipe(Command.withDescription("Open the existing template profile to refresh login state"))
 
 const templateCommand = Command.make("template").pipe(
@@ -113,17 +116,51 @@ const tiketStartCommand = Command.make(
   "start",
   {
     url: Argument.string("url"),
+    customerData: Flag.path("customer-data", { pathType: "file", mustExist: true }).pipe(
+      Flag.optional,
+      Flag.withDescription("Path to customer data JSON (required unless --server-url)"),
+    ),
+    serverUrl: Flag.string("server-url").pipe(
+      Flag.optional,
+      Flag.withDescription("Remote pool server URL (Mode C)"),
+    ),
     count: Flag.integer("browser-count").pipe(
       Flag.withAlias("n"),
       Flag.withDescription("Number of browser instances to open"),
       Flag.withDefault(1),
     ),
   },
-  Effect.fn(
-    function* ({ count, url }) {
+  Effect.fn(function* ({ count, customerData, serverUrl, url }) {
+    const hasCustomerData = Option.isSome(customerData)
+    const hasServerUrl = Option.isSome(serverUrl)
+
+    if (hasCustomerData && hasServerUrl) {
+      return yield* Effect.die(
+        new Error("--customer-data and --server-url are mutually exclusive"),
+      )
+    }
+
+    if (!hasCustomerData && !hasServerUrl) {
+      return yield* Effect.die(
+        new Error("--customer-data is required unless --server-url is provided"),
+      )
+    }
+
+    const poolUpstreamLayer = Option.match(customerData, {
+      onSome: (path) => PoolUpstream.localLayer(path),
+      onNone: () => PoolUpstream.layer(normalizePoolRpcUrl(Option.getOrThrow(serverUrl))),
+    })
+
+    yield* Option.match(customerData, {
+      onSome: (path) => Effect.logInfo("Pool upstream local", path),
+      onNone: () =>
+        Effect.logInfo("Pool upstream", normalizePoolRpcUrl(Option.getOrThrow(serverUrl))),
+    })
+
+    return yield* Effect.gen(function* () {
       const server = yield* HttpServer.HttpServer
       const { port } = server.address as HttpServer.TcpAddress
-      yield* Effect.logInfo("Server is listening on port", port)
+      yield* Effect.logInfo("Operator listening on port", port)
 
       const browser = yield* BrowserLauncher
       const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 4))
@@ -132,66 +169,35 @@ const tiketStartCommand = Command.make(
         { concurrency: parallelism },
       )
       return yield* Effect.never
-    },
-    Effect.provide(TiketLive),
-    Effect.scoped,
-  ),
-).pipe(Command.withDescription("Start tiket server and spawn browsers"))
+    }).pipe(
+      Effect.provide(
+        HttpRouter.serve(
+          RpcServer.layerHttp({
+            group: OperatorRpcs,
+            path: "/rpc",
+            protocol: "http",
+          }).pipe(
+            Layer.provide(OperatorRpcHandlers),
+            Layer.provideMerge(RpcSerialization.layerNdjson),
+            Layer.provide(SessionMap.layer),
+            Layer.provide(Discord.layer),
+            Layer.provide(TxConfig.layer),
+          ),
+          { disableLogger: true },
+        ).pipe(
+          Layer.provideMerge(
+            NodeHttpServer.layer(() => createServer(), { host: "127.0.0.1", port: 0 }),
+          ),
+          Layer.provide(poolUpstreamLayer),
+          Layer.provideMerge(BrowserLauncher.layer.pipe(Layer.provide(TxConfig.layer))),
+        ),
+      ),
+      Effect.scoped,
+    )
+  }, Effect.scoped),
+).pipe(Command.withDescription("Start tiket automation and spawn browsers"))
 
-const tiketCommand = Command.make("tiket").pipe(
+export const tiketCommand = Command.make("tiket").pipe(
   Command.withDescription("Tiket automation"),
   Command.withSubcommands([tiketStartCommand, templateCommand]),
 )
-
-const debugPathsCommand = Command.make(
-  "paths",
-  {},
-  Effect.fn(function* () {
-    const { paths } = yield* TxConfig
-    yield* Console.log(Formatter.format(paths, { space: 2 }))
-  }, Effect.provide(TxConfig.layer)),
-).pipe(Command.withDescription("Print env-paths roots and derived app directories"))
-
-const debugConfigSchemaCommand = Command.make(
-  "schema",
-  {},
-  Effect.fn(function* () {
-    const document = Schema.toJsonSchemaDocument(TxConfigSchema)
-    yield* Console.log(Formatter.formatJson(document.schema, { space: 2 }))
-  }),
-).pipe(Command.withDescription("Print config.json JSON Schema"))
-
-const debugConfigOpenCommand = Command.make(
-  "open",
-  {},
-  Effect.fn(function* () {
-    const { paths } = yield* TxConfig
-    yield* Effect.tryPromise(() => open(paths.configFilePath))
-  }, Effect.provide(TxConfig.layer)),
-).pipe(Command.withDescription("Open config.json in the default application"))
-
-const debugConfigCommand = Command.make(
-  "config",
-  {},
-  Effect.fn(function* () {
-    const { config } = yield* TxConfig
-    yield* Console.log(Formatter.formatJson(config, { space: 2 }))
-  }, Effect.provide(TxConfig.layer)),
-).pipe(
-  Command.withDescription("Print resolved config.json"),
-  Command.withSubcommands([debugConfigSchemaCommand, debugConfigOpenCommand]),
-)
-
-const debugCommand = Command.make("debug").pipe(
-  Command.withDescription("Debug and introspection"),
-  Command.withSubcommands([debugPathsCommand, debugConfigCommand]),
-)
-
-const command = Command.make("tx", {}).pipe(
-  Command.withDescription("tx server"),
-  Command.withSubcommands([tiketCommand, debugCommand]),
-)
-
-const cli = Command.run(command, { version: packageJson.version })
-
-NodeRuntime.runMain(cli.pipe(Effect.provide(NodeServices.layer)))

@@ -1,9 +1,9 @@
 {
   "extends": "../../tsconfig.json",
-  "include": ["./src/", "./test/", "./scripts/"],
+  "include": ["./src/", "./scripts/"],
 
   "compilerOptions": {
-    "composite": true,
+    "composite": false,
     "module": "NodeNext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,

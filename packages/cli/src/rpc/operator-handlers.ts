@@ -1,40 +1,57 @@
+import { customerKey, OperatorRpcs } from "@tx/schema"
 import { Effect, Formatter } from "effect"
 import { TxConfig } from "../lib/config.ts"
 import { Discord } from "../lib/discord.ts"
-import { discordWebhook, type WebhookMessage } from "../lib/discord-webhook.ts"
-import { CustomerPool } from "../lib/customer-pool.ts"
-import { ServerRpcs } from "./schema.ts"
+import { discordWebhook } from "../lib/discord-webhook.ts"
+import { PoolUpstream } from "../lib/pool-upstream.ts"
+import { SessionMap } from "../lib/session-map.ts"
 
-export const RpcHandlers = ServerRpcs.toLayer(
+export const OperatorRpcHandlers = OperatorRpcs.toLayer(
   Effect.gen(function* () {
-    const pool = yield* CustomerPool
+    const pool = yield* PoolUpstream
+    const sessions = yield* SessionMap
     const { discordWebhookUrl } = yield* TxConfig
     const discord = yield* Discord
     const poolEmptyLoggedForBrowser = new Set<string>()
 
-    const sendWebhook = (message: WebhookMessage) =>
-      discord.execute(discordWebhookUrl, message)
-
-    return ServerRpcs.of({
+    return OperatorRpcs.of({
       ClaimCustomer: ({ browserId }) =>
         Effect.gen(function* () {
-          const customer = yield* pool.claim(browserId)
-          if (!customer) {
+          const existing = sessions.get(browserId)
+          if (existing) return { customer: existing }
+
+          const response = yield* pool.claimNext().pipe(
+            Effect.tapError((error) =>
+              Effect.logWarning("Pool claim failed for", browserId, error),
+            ),
+            Effect.orDie,
+          )
+          if ("empty" in response) {
             if (!poolEmptyLoggedForBrowser.has(browserId)) {
               poolEmptyLoggedForBrowser.add(browserId)
               yield* Effect.logInfo("Customer pool empty", browserId)
             }
             return { empty: true as const }
           }
+
           poolEmptyLoggedForBrowser.delete(browserId)
-          yield* Effect.logInfo("Browser", browserId, "claimed customer", customer.email)
-          return { customer }
+          sessions.set(browserId, response.customer)
+          yield* Effect.logInfo("Browser", browserId, "claimed customer", response.customer.email)
+          return { customer: response.customer }
         }),
       ResolveCustomer: ({ browserId, customerKey: key, outcome, reason }) =>
         Effect.gen(function* () {
-          const resolved = yield* pool.resolve(browserId, key)
-          if (!resolved) return
+          const customer = sessions.get(browserId)
+          if (!customer || customerKey(customer) !== key) {
+            yield* Effect.logWarning("Resolve ignored for", browserId, key)
+            return
+          }
 
+          yield* pool.resolve({ customerKey: key, outcome }).pipe(
+            Effect.tapError((error) => Effect.logWarning("Pool resolve failed", key, error)),
+            Effect.ignore,
+          )
+          sessions.remove(browserId)
           yield* Effect.logInfo("Browser", browserId, outcome, "customer", key, "—", reason)
         }),
       PushLogs: ({ browserId, entries }) =>
@@ -87,7 +104,7 @@ export const RpcHandlers = ServerRpcs.toLayer(
             .file("payment.png", Buffer.from(screenshotBase64, "base64"), "image/png")
             .build()
 
-          yield* sendWebhook(message)
+          yield* discord.execute(discordWebhookUrl, message)
           yield* Effect.logInfo("Payment notify sent", browserId, customerEmail, virtualAccount)
         }).pipe(
           Effect.tapError((error) =>
@@ -97,7 +114,7 @@ export const RpcHandlers = ServerRpcs.toLayer(
         ),
       ReportQueueAlert: ({ browserId, transferUrl }) =>
         Effect.gen(function* () {
-          yield* sendWebhook(discordWebhook().content(transferUrl).build())
+          yield* discord.execute(discordWebhookUrl, discordWebhook().content(transferUrl).build())
           yield* Effect.logInfo("Queue alert sent", browserId, transferUrl)
         }).pipe(
           Effect.tapError((error) =>

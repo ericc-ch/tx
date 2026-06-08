@@ -1,7 +1,7 @@
 {
-  "name": "@tx/server",
+  "name": "@tx/cli",
   "version": "0.0.1",
-  "description": "tx RPC server and CLI",
+  "description": "tx CLI",
   "homepage": "https://github.com/ericc-ch/tx",
   "bugs": "https://github.com/ericc-ch/tx/issues",
   "author": {
@@ -13,17 +13,14 @@
     "url": "https://github.com/ericc-ch/tx.git"
   },
   "type": "module",
-  "exports": {
-    "./schema": {
-      "default": "./src/rpc/schema.ts"
-    }
-  },
   "scripts": {
     "build": "bun --env-file=.env.production scripts/build.ts",
-    "dev": "bun --env-file=.env.dev src/cli.ts",
+    "dev": "bun --env-file=.env.dev src/main.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tx/schema": "workspace:*",
+    "@tx/pool-server": "workspace:*",
     "@effect/platform-node": "catalog:effect",
     "effect": "catalog:effect",
     "env-paths": "^4.0.0",
@@ -31,10 +28,7 @@
     "tar": "^7.5.2"
   },
   "devDependencies": {
-    "@effect/vitest": "catalog:effect",
     "@types/bun": "catalog:",
-    "@types/node": "catalog:",
-    "@types/papaparse": "^5.5.2",
-    "papaparse": "^5.5.3"
+    "@types/node": "catalog:"
   }
 }

@@ -2,10 +2,10 @@ import { mkdir, readdir } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const serverPackage = join(dirname(fileURLToPath(import.meta.url)), "..")
-const extensionPackage = join(serverPackage, "../extension")
+const cliPackage = join(dirname(fileURLToPath(import.meta.url)), "..")
+const extensionPackage = join(cliPackage, "../extension")
 const extensionOut = join(extensionPackage, ".output/chrome-mv2")
-const archivePath = join(serverPackage, "src/assets/extension.tar.gz")
+const archivePath = join(cliPackage, "src/assets/extension.tar.gz")
 
 await mkdir(dirname(archivePath), { recursive: true })
 

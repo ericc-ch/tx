@@ -1,9 +1,9 @@
+import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "@tx/schema"
 import { Context, Effect, FileSystem, Layer, Path, References, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
 import { PROFILE_TEMPLATE_DIRECTORY, TxConfig } from "./config.ts"
 import { resolveBrowserExtensionPath } from "./extension.ts"
-import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "../rpc/schema.ts"
 
 interface BrowserEntry {
   handle: ChildProcessSpawner.ChildProcessHandle
@@ -27,7 +27,7 @@ export const browserSwitches = [
 ]
 
 export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
-  "@tx/server/BrowserLauncher",
+  "@tx/cli/BrowserLauncher",
   {
     make: Effect.fn(function* () {
       const fs = yield* FileSystem.FileSystem
@@ -80,7 +80,6 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
           browserId,
           port,
           minimumLogLevel,
-          notifyPayment: true,
         })
 
         const urlWithInit = new URL(url)

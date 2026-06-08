@@ -1,30 +1,11 @@
 import envPaths from "env-paths"
-import {
-  Config,
-  ConfigProvider,
-  Context,
-  Effect,
-  FileSystem,
-  Layer,
-  Path,
-  Predicate,
-  Schema,
-} from "effect"
-
-const discordWebhookUrlConfig = Config.schema(Schema.NonEmptyString, "DISCORD_WEBHOOK_URL")
-
-const compiledConfigLayer = ConfigProvider.layer(
-  ConfigProvider.fromUnknown({
-    DISCORD_WEBHOOK_URL: process.env.DISCORD_WEBHOOK_URL?.trim(),
-  }),
-)
+import { Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
 const CONFIG_FILE_NAME = "config.json"
 export const PROFILE_TEMPLATE_DIRECTORY = "__profile-template"
 const txEnvPaths = envPaths("tx")
 
 export const TxConfigSchema = Schema.Struct({
   browserExecutable: Schema.String,
-  customerDataPath: Schema.String,
   userDataDir: Schema.optional(Schema.NonEmptyString),
   copyUserDataDirToTmp: Schema.optional(Schema.Boolean),
   $schema: Schema.optional(Schema.String),
@@ -34,10 +15,9 @@ const TxConfigFile = Schema.fromJsonString(TxConfigSchema)
 
 const defaultConfig = {
   browserExecutable: "helium",
-  customerDataPath: "",
 } satisfies typeof TxConfigSchema.Type
 
-export class TxConfig extends Context.Service<TxConfig>()("@tx/server/TxConfig", {
+export class TxConfig extends Context.Service<TxConfig>()("@tx/cli/TxConfig", {
   make: Effect.fn(function* () {
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
@@ -78,10 +58,19 @@ export class TxConfig extends Context.Service<TxConfig>()("@tx/server/TxConfig",
 
     yield* fs.makeDirectory(paths.userDataDir, { recursive: true })
 
-    const discordWebhookUrl = yield* discordWebhookUrlConfig
+    // Development: `bun run dev` loads packages/cli/.env.dev into process.env.
+    // Production: scripts/build.ts bakes DISCORD_WEBHOOK_URL into the compiled binary.
+    const discordWebhookUrl = process.env.DISCORD_WEBHOOK_URL?.trim()
+    if (!discordWebhookUrl) {
+      return yield* Effect.die(
+        new Error(
+          "DISCORD_WEBHOOK_URL is not set — use `bun run dev` (loads .env.dev) or a production build",
+        ),
+      )
+    }
 
     return { config, paths, discordWebhookUrl }
   }),
 }) {
-  static layer = Layer.effect(this, this.make()).pipe(Layer.provide(compiledConfigLayer))
+  static layer = Layer.effect(this, this.make())
 }

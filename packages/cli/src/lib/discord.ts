@@ -23,7 +23,7 @@ const webhookRequest = (url: string, message: WebhookMessage) => {
   return HttpClientRequest.post(url).pipe(HttpClientRequest.bodyFormDataRecord(entries))
 }
 
-export class Discord extends Context.Service<Discord>()("@tx/server/Discord", {
+export class Discord extends Context.Service<Discord>()("@tx/cli/Discord", {
   make: Effect.fn(function* () {
     const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk)
 
