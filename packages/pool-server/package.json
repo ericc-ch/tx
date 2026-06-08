@@ -1,0 +1,37 @@
+{
+  "name": "@tx/pool-server",
+  "version": "0.0.1",
+  "description": "tx customer pool RPC server",
+  "homepage": "https://github.com/ericc-ch/tx",
+  "bugs": "https://github.com/ericc-ch/tx/issues",
+  "author": {
+    "name": "Erick Christian",
+    "email": "erickchristian48@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ericc-ch/tx.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/main.ts"
+    }
+  },
+  "scripts": {
+    "dev": "bun src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tx/schema": "workspace:*",
+    "@effect/platform-node": "catalog:effect",
+    "effect": "catalog:effect"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:effect",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/papaparse": "^5.5.2",
+    "papaparse": "^5.5.3"
+  }
+}

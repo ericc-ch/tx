@@ -1,0 +1,4 @@
+dist/
+src/assets/extension.tar.gz
+.env.dev
+.env.production
