@@ -5,10 +5,23 @@ export const PROFILE_TEMPLATE_DIRECTORY = "__profile-template"
 const txEnvPaths = envPaths("tx")
 
 export const TxConfigSchema = Schema.Struct({
-  browserExecutable: Schema.String,
-  userDataDir: Schema.optional(Schema.NonEmptyString),
-  copyUserDataDirToTmp: Schema.optional(Schema.Boolean),
-  $schema: Schema.optional(Schema.String),
+  browserExecutable: Schema.String.annotateKey({
+    description:
+      "Command name or absolute path of the Chromium-based browser binary. Passed to every spawned instance via ChildProcess. Defaults to helium.",
+  }),
+  userDataDir: Schema.optional(Schema.NonEmptyString).annotateKey({
+    description:
+      "Chromium user-data root (--user-data-dir). Each browser gets a subdirectory profile here; the shared login template lives at <userDataDir>/__profile-template. Relative paths resolve from the config file directory. Defaults to the app data directory.",
+  }),
+  copyUserDataDirToTmp: Schema.optional(Schema.Boolean).annotateKey({
+    description:
+      "When true, copies userDataDir to a temp directory at startup so the configured directory is not modified. Each run starts from a snapshot.",
+  }),
+  $schema: Schema.optional(Schema.String).annotateKey({
+    description: "Optional JSON Schema URL for editor validation hints (e.g. in VS Code).",
+  }),
+}).annotate({
+  description: "tx CLI configuration persisted at config.json (see tx debug paths).",
 })
 
 const TxConfigFile = Schema.fromJsonString(TxConfigSchema)

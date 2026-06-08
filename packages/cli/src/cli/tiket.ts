@@ -72,8 +72,14 @@ const templateCreateCommand = Command.make(
   ),
 ).pipe(
   Command.withDescription(
-    "Create a fresh template profile in a temp browser; save replaces any existing template",
+    "Open a disposable browser, log into Tiket, and optionally save the profile as the shared template at <userDataDir>/__profile-template. Replaces any existing template when you confirm save.",
   ),
+  Command.withExamples([
+    {
+      command: "tx tiket template create",
+      description: "Create or replace the shared login template",
+    },
+  ]),
 )
 
 const templateUpdateCommand = Command.make(
@@ -105,29 +111,55 @@ const templateUpdateCommand = Command.make(
     yield* handle.exitCode
     yield* Effect.logInfo("Template updated at", templateDir)
   }, Effect.provide(TxConfig.layer), Effect.scoped),
-).pipe(Command.withDescription("Open the existing template profile to refresh login state"))
+).pipe(
+  Command.withDescription(
+    "Open the existing template profile in your configured userDataDir so you can refresh Tiket cookies or re-authenticate. Changes are written back to __profile-template when you close the browser.",
+  ),
+  Command.withExamples([
+    {
+      command: "tx tiket template update",
+      description: "Refresh an existing template without recreating it",
+    },
+  ]),
+)
 
 const templateCommand = Command.make("template").pipe(
-  Command.withDescription("Manage the browser profile template"),
+  Command.withShortDescription("Browser profile template"),
+  Command.withDescription(
+    "Manage the Chromium profile template copied into every new browser started by tx tiket start. Use a template to share one Tiket login across many parallel browser instances.",
+  ),
   Command.withSubcommands([templateCreateCommand, templateUpdateCommand]),
 )
 
 const tiketStartCommand = Command.make(
   "start",
   {
-    url: Argument.string("url"),
+    url: Argument.string("url").pipe(
+      Argument.withDescription(
+        "Tiket event URL to open in each browser. Usually the event overview page (path contains /to-do/). The extension navigates from overview → packages → order → payment.",
+      ),
+    ),
     customerData: Flag.path("customer-data", { pathType: "file", mustExist: true }).pipe(
       Flag.optional,
-      Flag.withDescription("Path to customer data JSON (required unless --server-url)"),
+      Flag.withDescription(
+        "Path to a customer JSON file. Starts an in-process pool on this machine. Required unless --server-url is set. Mutually exclusive with --server-url.",
+      ),
+      Flag.withMetavar("FILE"),
     ),
     serverUrl: Flag.string("server-url").pipe(
       Flag.optional,
-      Flag.withDescription("Remote pool server URL (Mode C)"),
+      Flag.withDescription(
+        "Base URL of a remote tx server start pool (e.g. http://192.168.1.10:3847). Operators claim customers over HTTP RPC. /rpc is appended automatically when omitted. Mutually exclusive with --customer-data.",
+      ),
+      Flag.withMetavar("URL"),
     ),
     count: Flag.integer("browser-count").pipe(
       Flag.withAlias("n"),
-      Flag.withDescription("Number of browser instances to open"),
+      Flag.withDescription(
+        "How many browser instances to spawn. Each instance claims customers independently from the pool. Spawn parallelism is capped at roughly one quarter of available CPU cores.",
+      ),
       Flag.withDefault(1),
+      Flag.withMetavar("N"),
     ),
   },
   Effect.fn(function* ({ count, customerData, serverUrl, url }) {
@@ -195,9 +227,38 @@ const tiketStartCommand = Command.make(
       Effect.scoped,
     )
   }, Effect.scoped),
-).pipe(Command.withDescription("Start tiket automation and spawn browsers"))
+).pipe(
+  Command.withDescription(
+    "Start the operator RPC server on localhost, then spawn one or more browsers with the tx extension loaded. Each browser opens the event URL and runs the autobuy pipeline: claim a customer, fill checkout forms, select payment, and notify Discord on confirmation. Runs until you stop the process (Ctrl+C).",
+  ),
+  Command.withExamples([
+    {
+      command:
+        'tx tiket start --customer-data ./customers.json "https://www.tiket.com/to-do/my-event"',
+      description: "Single browser with a local customer file",
+    },
+    {
+      command:
+        'tx tiket start --customer-data ./customers.json -n 5 "https://www.tiket.com/to-do/my-event"',
+      description: "Five parallel browsers sharing one local pool",
+    },
+    {
+      command:
+        'tx tiket start --server-url http://10.0.0.5:3847 -n 10 "https://www.tiket.com/to-do/my-event"',
+      description: "Ten browsers connected to a remote pool server",
+    },
+    {
+      command:
+        'tx tiket start --customer-data ./customers.json --log-level debug "https://www.tiket.com/to-do/my-event"',
+      description: "Verbose logging from CLI and extension",
+    },
+  ]),
+)
 
 export const tiketCommand = Command.make("tiket").pipe(
-  Command.withDescription("Tiket automation"),
+  Command.withShortDescription("Tiket.com automation"),
+  Command.withDescription(
+    "Commands for running Tiket checkout automation in real browsers. The extension handles queue pages, package selection, order forms, and payment; the CLI spawns browsers and coordinates customer claims.",
+  ),
   Command.withSubcommands([tiketStartCommand, templateCommand]),
 )

@@ -9,12 +9,18 @@ import { debugCommand } from "./cli/debug.ts"
 import { tiketCommand } from "./cli/tiket.ts"
 
 const serverTopCommand = Command.make("server").pipe(
-  Command.withDescription("Customer pool RPC server"),
+  Command.withShortDescription("Shared customer pool RPC server"),
+  Command.withDescription(
+    "Run a standalone pool server that hands out customers to one or more tx tiket start operators. Use this when several machines share a single customer list over the network.",
+  ),
   Command.withSubcommands([poolStartCommand, poolCsvToJsonCommand]),
 )
 
 const command = Command.make("tx", {}).pipe(
-  Command.withDescription("tx"),
+  Command.withShortDescription("Tiket checkout automation"),
+  Command.withDescription(
+    "Browser automation for tiket.com. Spawns Helium (or another Chromium browser) with the tx extension, coordinates customer claims, and sends Discord alerts for payments and queue position.",
+  ),
   Command.withSubcommands([tiketCommand, serverTopCommand, debugCommand]),
 )
 
