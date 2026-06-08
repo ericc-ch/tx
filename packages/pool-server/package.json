@@ -23,8 +23,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@tx/schema": "workspace:*",
     "@effect/platform-node": "catalog:effect",
+    "@tx/schema": "workspace:*",
     "effect": "catalog:effect"
   },
   "devDependencies": {

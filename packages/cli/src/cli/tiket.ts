@@ -85,32 +85,36 @@ const templateCreateCommand = Command.make(
 const templateUpdateCommand = Command.make(
   "update",
   {},
-  Effect.fn(function* () {
-    const fs = yield* FileSystem.FileSystem
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    const { config, paths } = yield* TxConfig
-    const { userDataDir, templateDir } = paths
+  Effect.fn(
+    function* () {
+      const fs = yield* FileSystem.FileSystem
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+      const { config, paths } = yield* TxConfig
+      const { userDataDir, templateDir } = paths
 
-    if (!(yield* fs.exists(templateDir))) {
-      return yield* Effect.die(
-        new Error(
-          `Template profile not found at ${templateDir}. Create one with: tx tiket template create`,
-        ),
+      if (!(yield* fs.exists(templateDir))) {
+        return yield* Effect.die(
+          new Error(
+            `Template profile not found at ${templateDir}. Create one with: tx tiket template create`,
+          ),
+        )
+      }
+
+      const handle = yield* spawner.spawn(
+        ChildProcess.make(config.browserExecutable, [
+          `--user-data-dir=${userDataDir}`,
+          `--profile-directory=${PROFILE_TEMPLATE_DIRECTORY}`,
+          ...browserSwitches,
+        ]),
       )
-    }
 
-    const handle = yield* spawner.spawn(
-      ChildProcess.make(config.browserExecutable, [
-        `--user-data-dir=${userDataDir}`,
-        `--profile-directory=${PROFILE_TEMPLATE_DIRECTORY}`,
-        ...browserSwitches,
-      ]),
-    )
-
-    yield* Effect.logInfo("Update the template, then close the browser when done")
-    yield* handle.exitCode
-    yield* Effect.logInfo("Template updated at", templateDir)
-  }, Effect.provide(TxConfig.layer), Effect.scoped),
+      yield* Effect.logInfo("Update the template, then close the browser when done")
+      yield* handle.exitCode
+      yield* Effect.logInfo("Template updated at", templateDir)
+    },
+    Effect.provide(TxConfig.layer),
+    Effect.scoped,
+  ),
 ).pipe(
   Command.withDescription(
     "Open the existing template profile in your configured userDataDir so you can refresh Tiket cookies or re-authenticate. Changes are written back to __profile-template when you close the browser.",
@@ -167,9 +171,7 @@ const tiketStartCommand = Command.make(
     const hasServerUrl = Option.isSome(serverUrl)
 
     if (hasCustomerData && hasServerUrl) {
-      return yield* Effect.die(
-        new Error("--customer-data and --server-url are mutually exclusive"),
-      )
+      return yield* Effect.die(new Error("--customer-data and --server-url are mutually exclusive"))
     }
 
     if (!hasCustomerData && !hasServerUrl) {

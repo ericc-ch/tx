@@ -19,9 +19,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@tx/schema": "workspace:*",
-    "@tx/pool-server": "workspace:*",
     "@effect/platform-node": "catalog:effect",
+    "@tx/pool-server": "workspace:*",
+    "@tx/schema": "workspace:*",
     "effect": "catalog:effect",
     "env-paths": "^4.0.0",
     "open": "^11.0.0",

@@ -63,9 +63,7 @@ export const discordWebhook = () => {
       return builder
     },
     file(name: string, data: Uint8Array, contentType?: string) {
-      files.push(
-        contentType === undefined ? { name, data } : { name, data, contentType },
-      )
+      files.push(contentType === undefined ? { name, data } : { name, data, contentType })
       return builder
     },
     build(): WebhookMessage {

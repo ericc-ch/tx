@@ -27,10 +27,7 @@ export const poolCsvToJsonCommand = Command.make(
     const outputFile = Option.match(output, {
       onSome: (file) => file,
       onNone: () =>
-        path.join(
-          path.dirname(input),
-          `${path.basename(input, path.extname(input))}.json`,
-        ),
+        path.join(path.dirname(input), `${path.basename(input, path.extname(input))}.json`),
     })
 
     const customers = customersFromCsv(yield* fs.readFileString(input))

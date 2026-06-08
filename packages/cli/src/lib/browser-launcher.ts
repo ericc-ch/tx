@@ -26,107 +26,104 @@ export const browserSwitches = [
   "--disable-component-update",
 ]
 
-export class BrowserLauncher extends Context.Service<BrowserLauncher>()(
-  "@tx/cli/BrowserLauncher",
-  {
-    make: Effect.fn(function* () {
-      const fs = yield* FileSystem.FileSystem
-      const path = yield* Path.Path
-      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-      const { config, paths } = yield* TxConfig
-      const browserExtensionPath = yield* resolveBrowserExtensionPath().pipe(Effect.orDie)
-      let { userDataDir, templateDir } = paths
-      const browsers = new Map<string, BrowserEntry>()
-      let nextBrowserIndex = 1
+export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/cli/BrowserLauncher", {
+  make: Effect.fn(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const { config, paths } = yield* TxConfig
+    const browserExtensionPath = yield* resolveBrowserExtensionPath().pipe(Effect.orDie)
+    let { userDataDir, templateDir } = paths
+    const browsers = new Map<string, BrowserEntry>()
+    let nextBrowserIndex = 1
 
-      if (config.copyUserDataDirToTmp) {
-        const sourceUserDataDir = paths.userDataDir
-        const tmpUserDataDir = yield* fs.makeTempDirectory({ prefix: "tx-user-data-" })
-        yield* Effect.addFinalizer(() =>
-          fs.remove(tmpUserDataDir, { recursive: true, force: true }).pipe(Effect.ignore),
-        )
-        yield* fs.copy(sourceUserDataDir, tmpUserDataDir)
-        yield* Effect.logDebug(
-          "Copied user data dir to tmp for runtime:",
-          sourceUserDataDir,
-          tmpUserDataDir,
-        )
-        userDataDir = tmpUserDataDir
-        templateDir = path.join(tmpUserDataDir, PROFILE_TEMPLATE_DIRECTORY)
-      }
+    if (config.copyUserDataDirToTmp) {
+      const sourceUserDataDir = paths.userDataDir
+      const tmpUserDataDir = yield* fs.makeTempDirectory({ prefix: "tx-user-data-" })
+      yield* Effect.addFinalizer(() =>
+        fs.remove(tmpUserDataDir, { recursive: true, force: true }).pipe(Effect.ignore),
+      )
+      yield* fs.copy(sourceUserDataDir, tmpUserDataDir)
+      yield* Effect.logDebug(
+        "Copied user data dir to tmp for runtime:",
+        sourceUserDataDir,
+        tmpUserDataDir,
+      )
+      userDataDir = tmpUserDataDir
+      templateDir = path.join(tmpUserDataDir, PROFILE_TEMPLATE_DIRECTORY)
+    }
 
-      const hasTemplate = yield* fs.exists(templateDir)
-      if (!hasTemplate) {
-        yield* Effect.logInfo(
-          `No template profile at ${templateDir}; browsers will start with fresh profiles`,
-        )
-      }
+    const hasTemplate = yield* fs.exists(templateDir)
+    if (!hasTemplate) {
+      yield* Effect.logInfo(
+        `No template profile at ${templateDir}; browsers will start with fresh profiles`,
+      )
+    }
 
-      const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
-        const browserId = yield* Effect.sync(() => {
-          const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
-          const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
-          return `${port}-${nextBrowserIndex++}-${adjective}-${noun}`
-        })
-
-        const profilePath = path.join(userDataDir, browserId)
-        if (hasTemplate) {
-          yield* fs.copy(templateDir, profilePath)
-          yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
-        }
-
-        const minimumLogLevel = yield* References.MinimumLogLevel
-        const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({
-          browserId,
-          port,
-          minimumLogLevel,
-        })
-
-        const urlWithInit = new URL(url)
-        urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)
-
-        const command = ChildProcess.make(config.browserExecutable, [
-          `--user-data-dir=${userDataDir}`,
-          `--profile-directory=${browserId}`,
-          `--load-extension=${browserExtensionPath}`,
-          ...browserSwitches,
-          urlWithInit.toString(),
-        ])
-        const handle = yield* Effect.acquireRelease(
-          spawner.spawn(command),
-          Effect.fn(function* () {
-            yield* Effect.sync(() => {
-              browsers.delete(browserId)
-            })
-            yield* fs.remove(profilePath, { recursive: true, force: true })
-            yield* Effect.logDebug(`Profile removed for ${browserId}`)
-          }, Effect.orDie),
-        )
-
-        const entry = { handle, profilePath }
-        yield* Effect.sync(() => {
-          browsers.set(browserId, entry)
-        })
-        yield* Effect.logDebug(`Browser spawned ${browserId}`, entry)
-
-        return browserId
+    const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
+      const browserId = yield* Effect.sync(() => {
+        const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
+        const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
+        return `${port}-${nextBrowserIndex++}-${adjective}-${noun}`
       })
 
-      const kill = Effect.fn(function* (browserId: string) {
-        const entry = yield* Effect.sync(() => {
-          const e = browsers.get(browserId)
-          if (e) browsers.delete(browserId)
-          return e
-        })
-        if (!entry) return
+      const profilePath = path.join(userDataDir, browserId)
+      if (hasTemplate) {
+        yield* fs.copy(templateDir, profilePath)
+        yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
+      }
 
-        yield* entry.handle.kill().pipe(Effect.ignore)
-        yield* fs.remove(entry.profilePath, { recursive: true, force: true })
+      const minimumLogLevel = yield* References.MinimumLogLevel
+      const encoded = Schema.encodeSync(InitPayloadFromUrlParam)({
+        browserId,
+        port,
+        minimumLogLevel,
       })
 
-      return { spawn, kill }
-    }),
-  },
-) {
+      const urlWithInit = new URL(url)
+      urlWithInit.searchParams.set(INIT_PAYLOAD_PARAM, encoded)
+
+      const command = ChildProcess.make(config.browserExecutable, [
+        `--user-data-dir=${userDataDir}`,
+        `--profile-directory=${browserId}`,
+        `--load-extension=${browserExtensionPath}`,
+        ...browserSwitches,
+        urlWithInit.toString(),
+      ])
+      const handle = yield* Effect.acquireRelease(
+        spawner.spawn(command),
+        Effect.fn(function* () {
+          yield* Effect.sync(() => {
+            browsers.delete(browserId)
+          })
+          yield* fs.remove(profilePath, { recursive: true, force: true })
+          yield* Effect.logDebug(`Profile removed for ${browserId}`)
+        }, Effect.orDie),
+      )
+
+      const entry = { handle, profilePath }
+      yield* Effect.sync(() => {
+        browsers.set(browserId, entry)
+      })
+      yield* Effect.logDebug(`Browser spawned ${browserId}`, entry)
+
+      return browserId
+    })
+
+    const kill = Effect.fn(function* (browserId: string) {
+      const entry = yield* Effect.sync(() => {
+        const e = browsers.get(browserId)
+        if (e) browsers.delete(browserId)
+        return e
+      })
+      if (!entry) return
+
+      yield* entry.handle.kill().pipe(Effect.ignore)
+      yield* fs.remove(entry.profilePath, { recursive: true, force: true })
+    })
+
+    return { spawn, kill }
+  }),
+}) {
   static layer = Layer.effect(this, this.make())
 }

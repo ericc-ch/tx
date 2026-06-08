@@ -27,8 +27,7 @@ const program = Effect.gen(function* () {
   yield* Effect.logDebug("Waiting for queue number")
   let queueNumber = yield* Effect.sync(() => {
     const text =
-      document.getElementById("MainPart_lbQueueNumber")?.textContent?.trim().replace(/,/g, "") ??
-      ""
+      document.getElementById("MainPart_lbQueueNumber")?.textContent?.trim().replace(/,/g, "") ?? ""
     const parsed = Number.parseInt(text, 10)
     return Number.isFinite(parsed) ? parsed : ("pending" as const)
   }).pipe(

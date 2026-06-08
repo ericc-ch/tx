@@ -7,10 +7,10 @@
       "default": "./src/main.ts"
     }
   },
-  "dependencies": {
-    "effect": "catalog:effect"
-  },
   "scripts": {
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "effect": "catalog:effect"
   }
 }
