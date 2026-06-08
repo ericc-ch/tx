@@ -1,5 +1,7 @@
 This project, tx, is a browser automation split into server/extension architecture to bypass bot detection and utilize a normal browser extension.
 
+For development setup, workspace layout, and architecture, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Our priorities are (not ordered, all are important):
 
 - Maintainability

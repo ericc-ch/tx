@@ -6,6 +6,7 @@ import { Command } from "effect/unstable/cli"
 import packageJson from "../package.json" with { type: "json" }
 import { poolCsvToJsonCommand, poolStartCommand } from "@tx/pool-server"
 import { debugCommand } from "./cli/debug.ts"
+import { readmeCommand } from "./cli/readme.ts"
 import { tiketCommand } from "./cli/tiket.ts"
 
 const serverTopCommand = Command.make("server").pipe(
@@ -19,9 +20,9 @@ const serverTopCommand = Command.make("server").pipe(
 const command = Command.make("tx", {}).pipe(
   Command.withShortDescription("Tiket checkout automation"),
   Command.withDescription(
-    "Browser automation for tiket.com. Spawns Helium (or another Chromium browser) with the tx extension, coordinates customer claims, and sends Discord alerts for payments and queue position.",
+    "Browser automation for tiket.com. Spawns Helium (or another Chromium browser) with the tx extension, coordinates customer claims, and sends Discord alerts for payments and queue position. Run tx readme for the full user guide.",
   ),
-  Command.withSubcommands([tiketCommand, serverTopCommand, debugCommand]),
+  Command.withSubcommands([tiketCommand, serverTopCommand, debugCommand, readmeCommand]),
 )
 
 const cli = Command.run(command, { version: packageJson.version })

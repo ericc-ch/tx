@@ -1,6 +1,6 @@
 # tx
 
-Tiket eXtension — browser automation for [tiket.com](https://www.tiket.com) checkout, built as a CLI + browser extension pair. The CLI launches real browser instances (Helium recommended), loads the extension, and coordinates customer data across one or many browsers. The extension drives the checkout flow in-page so automation looks like normal browsing rather than headless scripting.
+Browser automation for [tiket.com](https://www.tiket.com) checkout, built as a CLI + browser extension pair. The CLI launches real browser instances (Helium recommended), loads the extension, and coordinates customer data across one or many browsers. The extension drives the checkout flow in-page so automation looks like normal browsing rather than headless scripting.
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/E1E519XS7W)
 
@@ -31,8 +31,6 @@ The extension also handles:
 - **[Helium](https://github.com/imputnet/helium)** — recommended browser. tx defaults to the `helium` executable on your `PATH`. Any Chromium-based browser with `--load-extension` support can work if you set `browserExecutable` in config.
 - **Discord webhook URL** — required for payment confirmations and queue alerts. Create one in your Discord server under _Server Settings → Integrations → Webhooks_.
 - **Customer data** — a CSV export or JSON file (see [Customer data](#customer-data)).
-
-For development or building from source, you also need [Bun](https://bun.sh) 1.3+.
 
 ## Installation
 
@@ -73,31 +71,9 @@ Verify Helium is reachable:
 helium --version
 ```
 
-### From source (development)
+### From source
 
-```bash
-git clone https://github.com/ericc-ch/tx.git
-cd tx
-bun install
-cp packages/cli/.env.example packages/cli/.env.dev
-# Edit .env.dev and set DISCORD_WEBHOOK_URL
-```
-
-Start the extension in watch mode (required for `bun run dev` — the CLI loads from `packages/extension/.output/chrome-mv2-dev/`):
-
-```bash
-bun run --filter @tx/extension dev
-```
-
-In another terminal, run the CLI:
-
-```bash
-bun run --filter @tx/cli dev -- <subcommand>
-# e.g.
-bun run --filter @tx/cli dev -- tiket start --customer-data ./customers.json "https://www.tiket.com/to-do/..."
-```
-
-Dev mode loads `packages/cli/.env.dev` for `DISCORD_WEBHOOK_URL`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ## Configuration
 
@@ -507,64 +483,9 @@ Paths, resolved config, and JSON Schemas. Does not start browsers.
 | `customer`        | Customer data schema helpers.                                                  |
 | `customer schema` | Print customer JSON file JSON Schema with per-field descriptions.              |
 
-## Development
-
-### Workspace layout
-
-| Package                | Description                 |
-| ---------------------- | --------------------------- |
-| `packages/cli`         | `tx` CLI binary             |
-| `packages/extension`   | WXT browser extension (MV2) |
-| `packages/pool-server` | Customer pool RPC server    |
-| `packages/schema`      | Shared RPC and data schemas |
-
-### Common tasks
-
-```bash
-bun install                  # install all workspace deps
-bun run check                # typecheck, test, lint, format
-bun run --filter @tx/extension dev     # extension watch mode (for CLI dev)
-bun run --filter @tx/extension build   # production extension build (used by release pipeline)
-bun run --filter @tx/cli dev -- --help # run CLI in dev mode
-bun run --filter @tx/cli build         # build release binaries
-```
-
-### Extension content scripts
-
-| Entrypoint       | Matches                              | Purpose                                   |
-| ---------------- | ------------------------------------ | ----------------------------------------- |
-| `tiket.content`  | `*://www.tiket.com/*`                | Main autobuy pipeline                     |
-| `queue.content`  | `*://queue.tiket.com/*`              | Queue position monitoring + Discord alert |
-| `golive.content` | `*://wait.thaiticketmajor.com/view*` | TTM human-verification auto-click         |
-
-Tests use real HTML fixtures under `fixtures/` (captured from production pages).
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  tx tiket start                                             │
-│  ┌──────────────┐    RPC (/rpc)    ┌─────────────────────┐  │
-│  │ Operator     │◄────────────────►│ Browser + Extension │  │
-│  │ (local HTTP) │                  │ (Helium, MV2 ext)   │  │
-│  └──────┬───────┘                  └─────────────────────┘  │
-│         │                                                   │
-│         ▼                                                   │
-│  ┌──────────────┐         optional                          │
-│  │ Pool         │◄──── tx server start (remote mode)        │
-│  │ (in-process  │                                          │
-│  │  or remote)  │                                           │
-│  └──────────────┘                                           │
-└─────────────────────────────────────────────────────────────┘
-         │
-         ▼
-   Discord webhook (payment + queue alerts)
-```
-
-RPC between extension and operator uses NDJSON over HTTP. The pool server exposes `ClaimNext` and `Resolve`; the operator exposes `ClaimCustomer`, `ResolveCustomer`, `PushLogs`, `ReportPaymentConfirm`, and `ReportQueueAlert`.
-
 ## References
 
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development setup and architecture
 - [Helium browser](https://github.com/imputnet/helium) — recommended Chromium fork
 - [Helium releases](https://github.com/imputnet/helium/releases) — download binaries
 - [Discord webhooks](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks) — set up notifications
