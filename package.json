@@ -29,7 +29,7 @@
     "check": "bun run typecheck && bun run test && bun run lint",
     "prepare": "simple-git-hooks && effect-language-service patch && bun scripts/references.ts",
     "test": "vitest run --passWithNoTests",
-    "typecheck": "tsc -b && bun run --filter @tx/cli typecheck && bun run --filter @tx/pool-server typecheck && bun run --filter @tx/extension typecheck && bun run --filter @tx/schema typecheck"
+    "typecheck": "tsc -b && bun run --workspaces --if-present typecheck"
   },
   "devDependencies": {
     "@effect/language-service": "^0.86.2",

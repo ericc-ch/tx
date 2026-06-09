@@ -15,8 +15,7 @@
   "type": "module",
   "scripts": {
     "build": "bun --env-file=.env.production scripts/build.ts",
-    "dev": "bun --env-file=.env.dev src/main.ts",
-    "typecheck": "tsc --noEmit"
+    "dev": "bun --env-file=.env.dev src/main.ts"
   },
   "dependencies": {
     "@effect/platform-node": "catalog:effect",

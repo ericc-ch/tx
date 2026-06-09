@@ -7,9 +7,6 @@
       "default": "./src/main.ts"
     }
   },
-  "scripts": {
-    "typecheck": "tsc --noEmit"
-  },
   "dependencies": {
     "effect": "catalog:effect"
   }

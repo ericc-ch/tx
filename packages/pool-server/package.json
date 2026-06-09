@@ -19,8 +19,7 @@
     }
   },
   "scripts": {
-    "dev": "bun src/main.ts",
-    "typecheck": "tsc --noEmit"
+    "dev": "bun src/main.ts"
   },
   "dependencies": {
     "@effect/platform-node": "catalog:effect",

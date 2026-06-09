@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/schema/" },
     { "path": "./packages/pool-server/" },
+    { "path": "./packages/cli/" },
     { "path": "./tsconfig.tools.json" }
   ],
 

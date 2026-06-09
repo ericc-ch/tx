@@ -3,7 +3,7 @@
   "include": ["./src/", "./scripts/"],
 
   "compilerOptions": {
-    "composite": false,
+    "composite": true,
     "module": "NodeNext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
