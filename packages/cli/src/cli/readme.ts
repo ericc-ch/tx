@@ -1,14 +1,14 @@
-import readmePath from "../../../../README.md" with { type: "file" }
-import { readFile } from "node:fs/promises"
+import { readmeContent } from "../macros/readme.ts" with { type: "macro" }
 import { Console, Effect } from "effect"
 import { Command } from "effect/unstable/cli"
+
+const readmeText = readmeContent()
 
 export const readmeCommand = Command.make(
   "readme",
   {},
   Effect.fn(function* () {
-    const text = yield* Effect.promise(() => readFile(readmePath, "utf-8"))
-    yield* Console.log(text)
+    yield* Console.log(readmeText)
   }),
 ).pipe(
   Command.withDescription("Print the tx user guide (README)."),
