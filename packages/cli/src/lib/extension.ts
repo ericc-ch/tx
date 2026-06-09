@@ -34,7 +34,10 @@ export const resolveBrowserExtensionPath = Effect.fn("resolveBrowserExtensionPat
   }
 
   return yield* new ExtensionNotAvailable({
-    message:
-      "Extension not found. Place an extension/ folder next to the tx binary (with manifest.json inside). Build release assets with: bun run --filter @tx/cli build",
+    message: [
+      "Extension not found (manifest.json missing). Lookup order:",
+      `  1. ${workspaceDir} — monorepo dev (extension watch output)`,
+      `  2. ${sidecarDir} — release sidecar (extension/ beside the tx binary)`,
+    ].join("\n"),
   })
 })

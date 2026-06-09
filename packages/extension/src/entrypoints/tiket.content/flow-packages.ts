@@ -14,8 +14,6 @@ export const MEMBERSHIP_CODE_USED_TEXT =
 export const PACKAGE_UNAVAILABLE_MODAL_TEXT = /pick another package|pilih paket lain/i
 export const SEE_OTHER_PACKAGES_BUTTON_TEXT = /^(see other packages|lihat paket lain)$/i
 
-const DEFAULT_CATEGORY_PRIORITY = ["cat 6", "last forever fan", "festival", "cat 1"]
-
 const quantitySettleSchedule = Schedule.spaced(Duration.millis(100)).pipe(
   Schedule.both(Schedule.during(Duration.seconds(2))),
 )
@@ -83,9 +81,6 @@ export const runPackages = Effect.gen(function* () {
   const store = yield* CustomerStore
   const customer = yield* store.require()
   const buyCount = customer.ticketCount
-  const categories =
-    customer.categories.length > 0 ? customer.categories : DEFAULT_CATEGORY_PRIORITY
-
   const page = new Page(document)
 
   const cards = page.getByTestId("package-card").filter({ visible: true })
@@ -148,7 +143,7 @@ export const runPackages = Effect.gen(function* () {
     yield* sheet.waitFor({ state: "hidden" })
   })
 
-  for (const priority of categories) {
+  for (const priority of customer.categories) {
     const match = available.find((pkg) => pkg.title.toLowerCase().includes(priority.toLowerCase()))
     if (!match) {
       yield* Effect.logDebug("No package found for", priority)

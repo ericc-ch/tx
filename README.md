@@ -19,37 +19,51 @@ Typical flow:
 1. Prepare a customer list (CSV or JSON).
 2. Configure the CLI (browser executable).
 3. Optionally create a browser profile template (logged-in Tiket session shared across instances).
-4. Run `tx tiket start` with an event URL — the CLI opens browser(s), the extension claims a customer and runs the autobuy pipeline.
+4. Run `tx tiket start` with an event URL. The CLI opens browser(s), and the extension claims a customer to run the autobuy pipeline.
 
 The extension also handles:
 
-- **Queue pages** (`queue.tiket.com`) — waits until your queue number drops below 1,000, then posts a Discord alert with the transfer URL.
-- **TTM wait room** (`wait.thaiticketmajor.com`) — auto-clicks human-verification prompts.
+- **Queue pages** (`queue.tiket.com`): waits until your queue number drops below 1,000, then posts a Discord alert with the transfer URL.
+- **TTM wait room** (`wait.thaiticketmajor.com`) auto-clicks human-verification prompts.
 
 ## Prerequisites
 
-- **[Helium](https://github.com/imputnet/helium)** — recommended browser. tx defaults to the `helium` executable on your `PATH`. Any Chromium-based browser with `--load-extension` support can work if you set `browserExecutable` in config.
-- **Customer data** — a CSV export or JSON file (see [Customer data](#customer-data)).
+- **[Helium](https://github.com/imputnet/helium)** is the recommended browser. tx defaults to the `helium` executable on your `PATH`. Any Chromium-based browser with `--load-extension` support can work if you set `browserExecutable` in config.
+- **Customer data**: a CSV export or JSON file (see [Customer data](#customer-data)).
 
 ## Installation
 
 ### Pre-built binary (recommended)
 
-Build release binaries from the repo (requires Bun). See [CONTRIBUTING.md](CONTRIBUTING.md) for build-time env (Discord webhook).
+Download the release for your platform from [GitHub Releases](https://github.com/ericc-ch/tx/releases):
 
-```bash
-git clone https://github.com/ericc-ch/tx.git
-cd tx
-bun install
-bun run --filter @tx/cli build
+- `tx-linux-x64` (Linux x64)
+- `tx-win-x64.exe` (Windows x64)
+
+Each release includes an `extension/` folder. Extract the archive and keep the binary and `extension/` in the same directory:
+
+```
+tx/
+├── tx-linux-x64          # or tx-win-x64.exe on Windows
+└── extension/
+    ├── manifest.json
+    └── ...
 ```
 
-Binaries land in `packages/cli/dist/`:
+Run the binary from that directory (or add the directory to your `PATH`).
 
-- `tx-linux-x64` — Linux x64
-- `tx-win-x64.exe` — Windows x64
+### How tx finds the extension
 
-Copy the binary for your platform somewhere on your `PATH` (or run it directly). The extension is bundled inside the binary — no separate install step.
+The extension is not embedded in the binary. At startup, tx looks for a folder named `extension/` that contains `manifest.json` at its root. For release installs, that folder must sit in the **same directory as the `tx` executable**:
+
+```
+<tx-binary-dir>/
+├── tx-linux-x64          # or tx-win-x64.exe
+└── extension/
+    └── manifest.json     # required, tx checks that this file exists
+```
+
+If `extension/manifest.json` is missing next to the binary, commands that spawn browsers (e.g. `tx tiket start`) fail immediately.
 
 On first run, tx creates a default `config.json` (see [Configuration](#configuration)).
 
@@ -102,7 +116,7 @@ On Linux this is typically:
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `browserExecutable`    | **Required.** Command or absolute path to the browser binary. Every `tx tiket start` and `tx tiket template` invocation spawns this executable with `--user-data-dir`, `--load-extension`, and the event URL. Defaults to `helium`.                                                                                          |
 | `userDataDir`          | Optional. Chromium profile root. tx creates one subdirectory per browser instance under this path and copies `__profile-template` into each new profile when a template exists. Relative paths resolve from the config file directory; absolute paths are used as-is. Defaults to the app data directory (`tx debug paths`). |
-| `copyUserDataDirToTmp` | Optional. When `true`, copies `userDataDir` to a temp directory at startup and runs against the copy. The configured directory on disk is left unchanged — useful for testing or read-only profile stores.                                                                                                                   |
+| `copyUserDataDirToTmp` | Optional. When `true`, copies `userDataDir` to a temp directory at startup and runs against the copy. The configured directory on disk is left unchanged. This is useful for testing or read-only profile stores.                                                                                                                   |
 | `$schema`              | Optional. JSON Schema URL for editor tooling only; tx ignores it at runtime.                                                                                                                                                                                                                                                 |
 
 Field descriptions are also embedded in the schema (Effect `annotate` / `annotateKey`) and appear in generated JSON Schema:
@@ -143,16 +157,16 @@ Each customer is one checkout attempt. Customers are keyed by `email:nik` and cl
 
 | Field            | Format                 | How tx uses it                                                                                                                                                                                                                      |
 | ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`           | Full legal name        | Filled into the contact detail form on the **order** page.                                                                                                                                                                          |
+| `name`           | Full legal name        | Filled into the contact detail form on the order page.                                                                                                                                                                          |
 | `email`          | Email address          | Filled on the order page; sent in Discord payment alerts; with `nik` forms the pool identity (`email:nik`) so each person is only claimed once.                                                                                     |
-| `birthDate`      | `YYYY-MM-DD`           | Stored and normalized from CSV. Not filled by the extension on the current Tiket checkout flow — keep accurate for your records.                                                                                                    |
+| `birthDate`      | `YYYY-MM-DD`           | Stored and normalized from CSV. It is not filled by the extension on the current Tiket checkout flow. Keep accurate for your records.                                                                                                    |
 | `gender`         | `female` or `male`     | Selects salutation on the order page (Ms/Nona vs Mr/Tuan). Normalized to lowercase.                                                                                                                                                 |
-| `nik`            | KTP / national ID      | Filled into the visitor detail sheet on the **order** page. Combined with `email` for pool deduplication.                                                                                                                           |
+| `nik`            | KTP / national ID      | Filled into the visitor detail sheet on the order page. Combined with `email` for pool deduplication.                                                                                                                           |
 | `phone`          | Digits, no leading `0` | Filled into the contact phone field (e.g. `81234567890`, not `081234567890`).                                                                                                                                                       |
-| `categories`     | String array           | **Packages** page: tried in order; each entry is matched as a case-insensitive substring of a package card title. First available match is ordered. When empty, falls back to `["cat 6", "last forever fan", "festival", "cat 1"]`. |
+| `categories`     | Non-empty string array | **Packages** page: tried in order; each entry is matched as a case-insensitive substring of a package card title. First available match is ordered. Required; empty arrays are rejected when loading customer data.                    |
 | `ticketCount`    | Positive integer       | **Packages** page: quantity set before clicking Book/Pesan.                                                                                                                                                                         |
 | `day`            | e.g. `"day 1"`         | Stored and normalized from CSV. Event day is determined by the start URL you pass to `tx tiket start`, not this field.                                                                                                              |
-| `membershipCode` | Presale code or `""`   | **Packages** page: entered when a presale verification flow is detected. Required on presale pages — an empty code discards the customer.                                                                                           |
+| `membershipCode` | Presale code or `""`   | **Packages** page: entered when a presale verification flow is detected. Required on presale pages; an empty code discards the customer.                                                                                           |
 | `paymentMethod`  | Exact Tiket label      | **Payment** page: clicked by exact text match (e.g. `"BCA Virtual Account"`, `"Mandiri Virtual Account"`).                                                                                                                          |
 
 See `fixtures/customer-data.json` for a full example. Print the annotated JSON Schema (same descriptions as the source schema):
@@ -188,7 +202,7 @@ Expected CSV columns (Indonesian headers):
 | `Kode Membership (Presale Only)`      | `membershipCode`               |
 | `Metode Pembayaran`                   | `paymentMethod`                |
 
-CSV normalization handles common quirks automatically — phone leading zeros, `M/D/YYYY` dates, `BCA` → `BCA Virtual Account`, `VA MANDIRI` → `Mandiri Virtual Account`, duplicate categories, etc.
+CSV normalization handles common quirks automatically, including phone leading zeros, `M/D/YYYY` dates, `BCA` → `BCA Virtual Account`, `VA MANDIRI` → `Mandiri Virtual Account`, and duplicate categories.
 
 ## Quick start
 
@@ -216,25 +230,11 @@ Start the operator server and spawn browser instances.
 tx tiket start [flags] <url>
 ```
 
-### Arguments
-
-| Argument | Description                                                                                                                                           |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `url`    | Tiket event URL opened in every browser. Use the overview page (`/to-do/...`). The extension drives overview → packages → order → payment from there. |
-
-### Flags
-
-| Flag              | Alias | Default | Description                                                                                                                                                                                   |
-| ----------------- | ----- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--customer-data` |       | —       | Customer JSON file. Starts an in-process pool on this machine. Required unless `--server-url` is set. Mutually exclusive with `--server-url`.                                                 |
-| `--server-url`    |       | —       | Remote pool server base URL (see [Distributed pool](#distributed-pool)). Operators claim customers over HTTP RPC; `/rpc` is appended when omitted. Mutually exclusive with `--customer-data`. |
-| `--browser-count` | `-n`  | `1`     | Browser instances to spawn. Each claims customers independently. Spawn concurrency is capped at ~¼ of CPU cores.                                                                              |
-
-Run `tx tiket start --help` for embedded examples.
+For details on arguments and flags, see the [`tx tiket start` command reference](#tx-tiket-start-flags). Run `tx tiket start --help` for embedded examples.
 
 ### Customer pool modes
 
-**Local file (single machine)** — embeds the pool in-process. Good for one operator running a few browsers:
+**Local file (single machine)** embeds the pool in-process. This is suitable for one operator running a few browsers:
 
 ```bash
 tx tiket start \
@@ -243,7 +243,7 @@ tx tiket start \
   "https://www.tiket.com/to-do/my-event"
 ```
 
-**Remote pool server (multiple machines)** — operators connect to a shared pool server. Good when several people or machines share one customer list:
+**Remote pool server (multiple machines)**: operators connect to a shared pool server. This is useful when several people or machines share one customer list:
 
 ```bash
 # Machine A — run the pool server
@@ -333,7 +333,7 @@ Refresh cookies or re-login without recreating from scratch:
 tx tiket template update
 ```
 
-Opens the existing template profile in your configured `userDataDir`. Close the browser when done — changes are saved in place.
+Opens the existing template profile in your configured `userDataDir`. Close the browser when done; changes are saved in place.
 
 If no template exists, browsers start with fresh profiles (you'll need to log in manually in each instance).
 
@@ -351,14 +351,7 @@ tx server start \
   --claim-ttl-seconds 1800
 ```
 
-| Flag                  | Default   | Description                                                                                                                    |
-| --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `--customer-data`     | —         | **Required.** Customer JSON file. Watched for changes; new rows hot-reload without duplicating settled or in-flight customers. |
-| `--host`              | `0.0.0.0` | Bind address. `0.0.0.0` accepts LAN connections for remote operators.                                                          |
-| `--port`              | `0`       | Listen port. `0` = ephemeral; check logs for the port to pass to `--server-url`.                                               |
-| `--claim-ttl-seconds` | `1800`    | Seconds before an unresolved in-flight claim returns to the pool (default 30 min).                                             |
-
-Run `tx server start --help` for embedded examples.
+For details on all available options, see [`tx server start` flags](#tx-server-start-flags). Run `tx server start --help` for embedded examples.
 
 The pool server watches the customer file for changes and hot-reloads new rows (existing settled or in-flight customers are not duplicated).
 
@@ -374,6 +367,7 @@ Every command, flag, and argument has a description in source and in `--help` ou
 
 ```bash
 tx --help
+tx readme
 tx tiket start --help
 tx server csv-to-json --help
 ```
@@ -391,11 +385,15 @@ Available on every subcommand:
 
 ### `tx`
 
-Root command. Subcommands: `tiket`, `server`, `debug`.
+Root command. Subcommands: `tiket`, `server`, `debug`, `readme`.
+
+| Subcommand | Description                                                                                    |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `readme`   | Print this user guide (same content as the repository README). See `tx readme --help`.         |
 
 ### `tx tiket`
 
-Tiket.com automation — browser spawning, operator RPC, and profile templates.
+Tiket.com automation: browser spawning, operator RPC, and profile templates.
 
 | Subcommand        | Description                                                                                                                                       |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -406,17 +404,17 @@ Tiket.com automation — browser spawning, operator RPC, and profile templates.
 
 #### `tx tiket start` flags
 
-| Flag                   | Alias | Default | Description                                                      |
-| ---------------------- | ----- | ------- | ---------------------------------------------------------------- |
-| `--customer-data FILE` |       | —       | Local customer JSON pool. Required unless `--server-url` is set. |
-| `--server-url URL`     |       | —       | Remote `tx server start` pool. `/rpc` appended when missing.     |
-| `--browser-count N`    | `-n`  | `1`     | Parallel browser instances.                                      |
+| Flag                   | Alias | Default | Description                                                                                                                                                                          |
+| ---------------------- | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--customer-data FILE` |       | None    | Local customer JSON pool. Starts an in-process pool on this machine. Required unless `--server-url` is set. Mutually exclusive with `--server-url`.                                  |
+| `--server-url URL`     |       | None    | Remote `tx server start` pool. Operators claim customers over HTTP RPC; `/rpc` is appended when omitted. Mutually exclusive with `--customer-data`.                                  |
+| `--browser-count N`    | `-n`  | `1`     | Parallel browser instances to spawn. Each claims customers independently. Spawn concurrency is capped at ~¼ of CPU cores.                                                           |
 
 #### `tx tiket start` arguments
 
-| Argument | Description                              |
-| -------- | ---------------------------------------- |
-| `url`    | Tiket event overview URL (`/to-do/...`). |
+| Argument | Description                                                                                                                                           |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `url`    | Tiket event URL opened in every browser. Use the overview page (`/to-do/...`). The extension drives overview → packages → order → payment from there. |
 
 ### `tx server`
 
@@ -429,12 +427,12 @@ Shared customer pool RPC server. Also available standalone as `pool-server` from
 
 #### `tx server start` flags
 
-| Flag                          | Default   | Description                                              |
-| ----------------------------- | --------- | -------------------------------------------------------- |
-| `--customer-data FILE`        | —         | **Required.** Customer JSON to load into the pool.       |
-| `--host HOST`                 | `0.0.0.0` | Bind address for remote operators.                       |
-| `--port PORT`                 | `0`       | Listen port (`0` = ephemeral).                           |
-| `--claim-ttl-seconds SECONDS` | `1800`    | TTL for in-flight claims before they return to the pool. |
+| Flag                          | Default   | Description                                                                                                                                                     |
+| ----------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--customer-data FILE`        | None      | **Required.** Customer JSON file to load. Watched for changes; new rows hot-reload without duplicating settled or in-flight customers.                         |
+| `--host HOST`                 | `0.0.0.0` | Bind address. `0.0.0.0` accepts LAN connections for remote operators.                                                                                           |
+| `--port PORT`                 | `0`       | Listen port. `0` = ephemeral; check logs for the port to pass to `--server-url`.                                                                                |
+| `--claim-ttl-seconds SECONDS` | `1800`    | Seconds before an unresolved in-flight claim returns to the pool (default 30 min).                                                                              |
 
 #### `tx server csv-to-json` arguments
 
@@ -458,8 +456,8 @@ Paths, resolved config, and JSON Schemas. Does not start browsers.
 
 ## References
 
-- [CONTRIBUTING.md](CONTRIBUTING.md) — development setup and architecture
-- [Helium browser](https://github.com/imputnet/helium) — recommended Chromium fork
-- [Helium releases](https://github.com/imputnet/helium/releases) — download binaries
-- [tiket.com](https://www.tiket.com) — target site
-- [Repository](https://github.com/ericc-ch/tx) — source and issues
+- [CONTRIBUTING.md](CONTRIBUTING.md): development setup and architecture
+- [Helium browser](https://github.com/imputnet/helium): recommended Chromium fork
+- [Helium releases](https://github.com/imputnet/helium/releases): download binaries
+- [tiket.com](https://www.tiket.com): target site
+- [Repository](https://github.com/ericc-ch/tx): source and issues

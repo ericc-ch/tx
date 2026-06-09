@@ -1,5 +1,8 @@
+import { Customer } from "@tx/schema"
+import { Schema } from "effect"
 import Papa from "papaparse"
-import type { Customer } from "@tx/schema"
+
+const decodeCustomer = Schema.decodeUnknownSync(Customer)
 
 const PAYMENT_METHOD_ALIASES: Record<string, string> = {
   bca: "BCA Virtual Account",
@@ -31,21 +34,34 @@ const normalizePaymentMethod = (paymentMethod: string) => {
   return PAYMENT_METHOD_ALIASES[trimmed.toLowerCase()] ?? trimmed
 }
 
-export const normalizeCustomer = (raw: typeof Customer.Type): typeof Customer.Type => ({
-  name: raw.name.trim(),
-  email: raw.email.trim().toLowerCase(),
-  birthDate: normalizeBirthDate(raw.birthDate),
-  gender: raw.gender.trim().toLowerCase(),
-  nik: raw.nik.trim(),
-  phone: normalizePhone(raw.phone),
-  categories: [
-    ...new Set(raw.categories.map((category) => category.trim().toLowerCase()).filter(Boolean)),
-  ],
-  ticketCount: raw.ticketCount,
-  day: raw.day.trim().toLowerCase(),
-  membershipCode: raw.membershipCode.trim(),
-  paymentMethod: normalizePaymentMethod(raw.paymentMethod),
-})
+export const normalizeCustomer = (raw: {
+  name: string
+  email: string
+  birthDate: string
+  gender: string
+  nik: string
+  phone: string
+  categories: ReadonlyArray<string>
+  ticketCount: number
+  day: string
+  membershipCode: string
+  paymentMethod: string
+}): typeof Customer.Type =>
+  decodeCustomer({
+    name: raw.name.trim(),
+    email: raw.email.trim().toLowerCase(),
+    birthDate: normalizeBirthDate(raw.birthDate),
+    gender: raw.gender.trim().toLowerCase(),
+    nik: raw.nik.trim(),
+    phone: normalizePhone(raw.phone),
+    categories: [
+      ...new Set(raw.categories.map((category) => category.trim().toLowerCase()).filter(Boolean)),
+    ],
+    ticketCount: raw.ticketCount,
+    day: raw.day.trim().toLowerCase(),
+    membershipCode: raw.membershipCode.trim(),
+    paymentMethod: normalizePaymentMethod(raw.paymentMethod),
+  })
 
 const parseCategories = (raw: string) =>
   raw

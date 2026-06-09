@@ -18,7 +18,7 @@ cp packages/cli/.env.example packages/cli/.env.dev
 # Edit .env.dev — see Discord webhook below
 ```
 
-Start the extension in watch mode (required for `bun run dev` — the CLI loads from `packages/extension/.output/chrome-mv2-dev/`):
+Start the extension in watch mode (required for `bun run dev` — see [Extension resolution](#extension-resolution)):
 
 ```bash
 bun run --filter @tx/extension dev
@@ -69,10 +69,33 @@ Queue alerts are sent once per queue session (deduplicated in extension local st
 bun install                  # install all workspace deps
 bun run check                # typecheck, test, lint, format
 bun run --filter @tx/extension dev     # extension watch mode (for CLI dev)
-bun run --filter @tx/extension build   # production extension build (used by release pipeline)
+bun run --filter @tx/extension build   # production extension → .output/chrome-mv2
 bun run --filter @tx/cli dev -- --help # run CLI in dev mode
-bun run --filter @tx/cli build         # build release binaries
+bun run --filter @tx/cli build         # release binaries → packages/cli/dist/
 ```
+
+## Extension resolution
+
+`resolveBrowserExtensionPath` (`packages/cli/src/lib/extension.ts`) checks paths in order and uses the first one where `manifest.json` exists:
+
+| Priority | Path | When |
+| -------- | ---- | ---- |
+| 1 | `packages/extension/.output/chrome-mv2-dev/` | Monorepo dev — extension watch must be running (`bun run --filter @tx/extension dev`) |
+| 2 | `<dirname(process.execPath)>/extension/` | Release binary — sidecar folder next to `tx-linux-x64` or `tx-win-x64.exe` |
+
+Workspace output wins when present, so `bun run --filter @tx/cli dev` does not need a copied `extension/` folder. Compiled binaries only check the sidecar path.
+
+If neither location has `manifest.json`, browser commands fail with `ExtensionNotAvailable`.
+
+## Release build
+
+```bash
+bun run --filter @tx/extension build
+bun run --filter @tx/cli build
+cp -r packages/extension/.output/chrome-mv2 packages/cli/dist/extension
+```
+
+Ship `packages/cli/dist/` as a unit: the platform binary plus `extension/` (with `manifest.json` at the root of that folder).
 
 ## Extension content scripts
 

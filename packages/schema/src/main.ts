@@ -38,9 +38,9 @@ export const Customer = Schema.Struct({
     description:
       "Mobile number without a leading 0 (e.g. 81234567890). Filled into the contact detail phone field (#mobile-number / #nomor-ponsel).",
   }),
-  categories: Schema.Array(Schema.String).annotateKey({
+  categories: Schema.NonEmptyArray(Schema.NonEmptyString).annotateKey({
     description:
-      'Package tier priority list, tried in order. Each entry is matched as a case-insensitive substring of a package card title on the packages page. When empty, defaults to ["cat 6", "last forever fan", "festival", "cat 1"].',
+      "Required package tier priority list, tried in order. Each entry is matched as a case-insensitive substring of a package card title on the packages page.",
   }),
   ticketCount: Schema.Number.annotateKey({
     description:

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "@effect/vitest"
 import { CustomerStore } from "@/lib/customer-store"
+import type { Customer } from "@tx/schema"
 import { Page } from "@/lib/playwlite"
 import { Cause, Effect, Exit } from "effect"
 import {
@@ -13,21 +14,21 @@ import { virtualAccountFromRoot } from "../src/entrypoints/tiket.content/flow-pa
 import { runPackages } from "../src/entrypoints/tiket.content/flow-packages"
 import { loadFixture, NodePlatform, resetDom } from "./util"
 
-const defaultCustomer = {
+const defaultCustomer: typeof Customer.Type = {
   name: "Test User",
   email: "test@example.com",
   birthDate: "2000-01-01",
   gender: "female",
   nik: "1234567890123456",
   phone: "81234567890",
-  categories: ["cat 6", "last forever fan", "festival", "cat 1"],
+  categories: ["last forever fan"],
   ticketCount: 6,
   day: "day 1",
   membershipCode: "WDYSLM",
   paymentMethod: "BCA Virtual Account",
 }
 
-const orderCustomer = {
+const orderCustomer: typeof Customer.Type = {
   name: "Tono Tenda",
   email: "tonotenda@example.com",
   birthDate: "2003-07-13",
@@ -41,7 +42,7 @@ const orderCustomer = {
   paymentMethod: "BCA Virtual Account",
 }
 
-const babymonsterCustomer = {
+const babymonsterCustomer: typeof Customer.Type = {
   name: "Fixture Customer A",
   email: "fixture-customer-a@example.com",
   birthDate: "2002-01-15",
@@ -63,15 +64,16 @@ const expectTaggedFailure = async (effect: Effect.Effect<void, unknown, never>, 
   }
 }
 
-const flowLayers = (customer = defaultCustomer) => CustomerStore.testLayer(customer)
+const flowLayers = (customer: typeof Customer.Type = defaultCustomer) =>
+  CustomerStore.testLayer(customer)
 
-const runPackagesWithCustomer = (customer = defaultCustomer) =>
+const runPackagesWithCustomer = (customer: typeof Customer.Type = defaultCustomer) =>
   runPackages.pipe(Effect.provide(flowLayers(customer)))
 
-const runOrderWithCustomer = (customer = orderCustomer) =>
+const runOrderWithCustomer = (customer: typeof Customer.Type = orderCustomer) =>
   runOrder.pipe(Effect.provide(flowLayers(customer)))
 
-const runPaymentWithCustomer = (customer = orderCustomer) =>
+const runPaymentWithCustomer = (customer: typeof Customer.Type = orderCustomer) =>
   runPayment.pipe(Effect.provide(flowLayers(customer)))
 
 const makeVisible = () => {
