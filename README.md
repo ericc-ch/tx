@@ -116,7 +116,7 @@ On Linux this is typically:
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `browserExecutable`    | **Required.** Command or absolute path to the browser binary. Every `tx tiket start` and `tx tiket template` invocation spawns this executable with `--user-data-dir`, `--load-extension`, and the event URL. Defaults to `helium`.                                                                                          |
 | `userDataDir`          | Optional. Chromium profile root. tx creates one subdirectory per browser instance under this path and copies `__profile-template` into each new profile when a template exists. Relative paths resolve from the config file directory; absolute paths are used as-is. Defaults to the app data directory (`tx debug paths`). |
-| `copyUserDataDirToTmp` | Optional. When `true`, copies `userDataDir` to a temp directory at startup and runs against the copy. The configured directory on disk is left unchanged. This is useful for testing or read-only profile stores.                                                                                                                   |
+| `copyUserDataDirToTmp` | Optional. When `true`, copies `userDataDir` to a temp directory at startup and runs against the copy. The configured directory on disk is left unchanged. This is useful for testing or read-only profile stores.                                                                                                            |
 | `$schema`              | Optional. JSON Schema URL for editor tooling only; tx ignores it at runtime.                                                                                                                                                                                                                                                 |
 
 Field descriptions are also embedded in the schema (Effect `annotate` / `annotateKey`) and appear in generated JSON Schema:
@@ -155,19 +155,19 @@ Each customer is one checkout attempt. Customers are keyed by `email:nik` and cl
 ]
 ```
 
-| Field            | Format                 | How tx uses it                                                                                                                                                                                                                      |
-| ---------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`           | Full legal name        | Filled into the contact detail form on the order page.                                                                                                                                                                          |
-| `email`          | Email address          | Filled on the order page; sent in Discord payment alerts; with `nik` forms the pool identity (`email:nik`) so each person is only claimed once.                                                                                     |
-| `birthDate`      | `YYYY-MM-DD`           | Stored and normalized from CSV. It is not filled by the extension on the current Tiket checkout flow. Keep accurate for your records.                                                                                                    |
-| `gender`         | `female` or `male`     | Selects salutation on the order page (Ms/Nona vs Mr/Tuan). Normalized to lowercase.                                                                                                                                                 |
-| `nik`            | KTP / national ID      | Filled into the visitor detail sheet on the order page. Combined with `email` for pool deduplication.                                                                                                                           |
-| `phone`          | Digits, no leading `0` | Filled into the contact phone field (e.g. `81234567890`, not `081234567890`).                                                                                                                                                       |
-| `categories`     | Non-empty string array | **Packages** page: tried in order; each entry is matched as a case-insensitive substring of a package card title. First available match is ordered. Required; empty arrays are rejected when loading customer data.                    |
-| `ticketCount`    | Positive integer       | **Packages** page: quantity set before clicking Book/Pesan.                                                                                                                                                                         |
-| `day`            | e.g. `"day 1"`         | Stored and normalized from CSV. Event day is determined by the start URL you pass to `tx tiket start`, not this field.                                                                                                              |
-| `membershipCode` | Presale code or `""`   | **Packages** page: entered when a presale verification flow is detected. Required on presale pages; an empty code discards the customer.                                                                                           |
-| `paymentMethod`  | Exact Tiket label      | **Payment** page: clicked by exact text match (e.g. `"BCA Virtual Account"`, `"Mandiri Virtual Account"`).                                                                                                                          |
+| Field            | Format                 | How tx uses it                                                                                                                                                                                                      |
+| ---------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`           | Full legal name        | Filled into the contact detail form on the order page.                                                                                                                                                              |
+| `email`          | Email address          | Filled on the order page; sent in Discord payment alerts; with `nik` forms the pool identity (`email:nik`) so each person is only claimed once.                                                                     |
+| `birthDate`      | `YYYY-MM-DD`           | Stored and normalized from CSV. It is not filled by the extension on the current Tiket checkout flow. Keep accurate for your records.                                                                               |
+| `gender`         | `female` or `male`     | Selects salutation on the order page (Ms/Nona vs Mr/Tuan). Normalized to lowercase.                                                                                                                                 |
+| `nik`            | KTP / national ID      | Filled into the visitor detail sheet on the order page. Combined with `email` for pool deduplication.                                                                                                               |
+| `phone`          | Digits, no leading `0` | Filled into the contact phone field (e.g. `81234567890`, not `081234567890`).                                                                                                                                       |
+| `categories`     | Non-empty string array | **Packages** page: tried in order; each entry is matched as a case-insensitive substring of a package card title. First available match is ordered. Required; empty arrays are rejected when loading customer data. |
+| `ticketCount`    | Positive integer       | **Packages** page: quantity set before clicking Book/Pesan.                                                                                                                                                         |
+| `day`            | e.g. `"day 1"`         | Stored and normalized from CSV. Event day is determined by the start URL you pass to `tx tiket start`, not this field.                                                                                              |
+| `membershipCode` | Presale code or `""`   | **Packages** page: entered when a presale verification flow is detected. Required on presale pages; an empty code discards the customer.                                                                            |
+| `paymentMethod`  | Exact Tiket label      | **Payment** page: clicked by exact text match (e.g. `"BCA Virtual Account"`, `"Mandiri Virtual Account"`).                                                                                                          |
 
 See `fixtures/customer-data.json` for a full example. Print the annotated JSON Schema (same descriptions as the source schema):
 
@@ -387,9 +387,9 @@ Available on every subcommand:
 
 Root command. Subcommands: `tiket`, `server`, `debug`, `readme`.
 
-| Subcommand | Description                                                                                    |
-| ---------- | ---------------------------------------------------------------------------------------------- |
-| `readme`   | Print this user guide (same content as the repository README). See `tx readme --help`.         |
+| Subcommand | Description                                                                            |
+| ---------- | -------------------------------------------------------------------------------------- |
+| `readme`   | Print this user guide (same content as the repository README). See `tx readme --help`. |
 
 ### `tx tiket`
 
@@ -404,11 +404,11 @@ Tiket.com automation: browser spawning, operator RPC, and profile templates.
 
 #### `tx tiket start` flags
 
-| Flag                   | Alias | Default | Description                                                                                                                                                                          |
-| ---------------------- | ----- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--customer-data FILE` |       | None    | Local customer JSON pool. Starts an in-process pool on this machine. Required unless `--server-url` is set. Mutually exclusive with `--server-url`.                                  |
-| `--server-url URL`     |       | None    | Remote `tx server start` pool. Operators claim customers over HTTP RPC; `/rpc` is appended when omitted. Mutually exclusive with `--customer-data`.                                  |
-| `--browser-count N`    | `-n`  | `1`     | Parallel browser instances to spawn. Each claims customers independently. Spawn concurrency is capped at ~¼ of CPU cores.                                                           |
+| Flag                   | Alias | Default | Description                                                                                                                                         |
+| ---------------------- | ----- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--customer-data FILE` |       | None    | Local customer JSON pool. Starts an in-process pool on this machine. Required unless `--server-url` is set. Mutually exclusive with `--server-url`. |
+| `--server-url URL`     |       | None    | Remote `tx server start` pool. Operators claim customers over HTTP RPC; `/rpc` is appended when omitted. Mutually exclusive with `--customer-data`. |
+| `--browser-count N`    | `-n`  | `1`     | Parallel browser instances to spawn. Each claims customers independently. Spawn concurrency is capped at ~¼ of CPU cores.                           |
 
 #### `tx tiket start` arguments
 
@@ -427,12 +427,12 @@ Shared customer pool RPC server. Also available standalone as `pool-server` from
 
 #### `tx server start` flags
 
-| Flag                          | Default   | Description                                                                                                                                                     |
-| ----------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--customer-data FILE`        | None      | **Required.** Customer JSON file to load. Watched for changes; new rows hot-reload without duplicating settled or in-flight customers.                         |
-| `--host HOST`                 | `0.0.0.0` | Bind address. `0.0.0.0` accepts LAN connections for remote operators.                                                                                           |
-| `--port PORT`                 | `0`       | Listen port. `0` = ephemeral; check logs for the port to pass to `--server-url`.                                                                                |
-| `--claim-ttl-seconds SECONDS` | `1800`    | Seconds before an unresolved in-flight claim returns to the pool (default 30 min).                                                                              |
+| Flag                          | Default   | Description                                                                                                                            |
+| ----------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `--customer-data FILE`        | None      | **Required.** Customer JSON file to load. Watched for changes; new rows hot-reload without duplicating settled or in-flight customers. |
+| `--host HOST`                 | `0.0.0.0` | Bind address. `0.0.0.0` accepts LAN connections for remote operators.                                                                  |
+| `--port PORT`                 | `0`       | Listen port. `0` = ephemeral; check logs for the port to pass to `--server-url`.                                                       |
+| `--claim-ttl-seconds SECONDS` | `1800`    | Seconds before an unresolved in-flight claim returns to the pool (default 30 min).                                                     |
 
 #### `tx server csv-to-json` arguments
 

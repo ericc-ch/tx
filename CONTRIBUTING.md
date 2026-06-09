@@ -78,10 +78,10 @@ bun run --filter @tx/cli build         # release binaries → packages/cli/dist/
 
 `resolveBrowserExtensionPath` (`packages/cli/src/lib/extension.ts`) checks paths in order and uses the first one where `manifest.json` exists:
 
-| Priority | Path | When |
-| -------- | ---- | ---- |
-| 1 | `packages/extension/.output/chrome-mv2-dev/` | Monorepo dev — extension watch must be running (`bun run --filter @tx/extension dev`) |
-| 2 | `<dirname(process.execPath)>/extension/` | Release binary — sidecar folder next to `tx-linux-x64` or `tx-win-x64.exe` |
+| Priority | Path                                         | When                                                                                  |
+| -------- | -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1        | `packages/extension/.output/chrome-mv2-dev/` | Monorepo dev — extension watch must be running (`bun run --filter @tx/extension dev`) |
+| 2        | `<dirname(process.execPath)>/extension/`     | Release binary — sidecar folder next to `tx-linux-x64` or `tx-win-x64.exe`            |
 
 Workspace output wins when present, so `bun run --filter @tx/cli dev` does not need a copied `extension/` folder. Compiled binaries only check the sidecar path.
 
