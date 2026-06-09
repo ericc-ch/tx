@@ -23,8 +23,7 @@
     "@tx/schema": "workspace:*",
     "effect": "catalog:effect",
     "env-paths": "^4.0.0",
-    "open": "^11.0.0",
-    "tar": "^7.5.2"
+    "open": "^11.0.0"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
