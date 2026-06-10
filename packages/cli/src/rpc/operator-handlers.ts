@@ -112,16 +112,6 @@ export const OperatorRpcHandlers = OperatorRpcs.toLayer(
           ),
           Effect.orDie,
         ),
-      ReportQueueAlert: ({ browserId, transferUrl }) =>
-        Effect.gen(function* () {
-          yield* discord.execute(discordWebhookUrl, discordWebhook().content(transferUrl).build())
-          yield* Effect.logInfo("Queue alert sent", browserId, transferUrl)
-        }).pipe(
-          Effect.tapError((error) =>
-            Effect.logError("Queue alert failed", browserId, transferUrl, error),
-          ),
-          Effect.orDie,
-        ),
     })
   }),
 )
