@@ -1,6 +1,6 @@
 import { CustomerStore } from "@/lib/customer-store"
 import { Locator, Page } from "@/lib/playwlite"
-import { Clock, Duration, Effect, Schedule } from "effect"
+import { Duration, Effect, Schedule } from "effect"
 import { MembershipCodeMissing, MembershipCodeRejected, NoPackageAvailable } from "./errors"
 
 export const OPEN_SHEET_BUTTON_TEXT =
@@ -34,48 +34,39 @@ const dismissUnavailableModal = (page: Page) =>
     yield* Effect.logDebug("Dismissed unavailable package modal")
   })
 
-const pollUntil = (
-  timeout: Duration.Duration,
-  outcomes: ReadonlyArray<{ tag: string; when: Effect.Effect<boolean> }>,
-) =>
-  Effect.gen(function* () {
-    const deadline = (yield* Clock.currentTimeMillis) + Duration.toMillis(timeout)
-    while ((yield* Clock.currentTimeMillis) < deadline) {
-      for (const outcome of outcomes) {
-        if (yield* outcome.when) return outcome.tag
-      }
-      yield* Effect.sleep(Duration.millis(100))
-    }
-    return "timeout"
-  })
-
 const waitForSheetOrUnavailableModal = (page: Page, sheet: Locator) =>
-  pollUntil(Duration.seconds(3), [
-    { tag: "unavailable", when: isUnavailableModalVisible(page) },
-    { tag: "sheet", when: sheet.count().pipe(Effect.map((count) => count > 0)) },
-  ])
+  page.waitForFirst(
+    [
+      { tag: "unavailable", when: isUnavailableModalVisible(page) },
+      { tag: "sheet", when: sheet.count().pipe(Effect.map((count) => count > 0)) },
+    ],
+    { timeout: Duration.seconds(3) },
+  )
 
 const waitForPostVerifyOutcome = (page: Page, sheet: Locator) =>
-  pollUntil(Duration.seconds(5), [
-    { tag: "unavailable", when: isUnavailableModalVisible(page) },
-    {
-      tag: "code-used",
-      when: sheet
-        .getByText(MEMBERSHIP_CODE_USED_TEXT)
-        .count()
-        .pipe(Effect.map((count) => count > 0)),
-    },
-    {
-      tag: "ready",
-      when: Effect.gen(function* () {
-        const quantityInput = sheet.locator('input[type="number"]').filter({ visible: true })
-        const quantityEditor = sheet
-          .locator('[data-testid^="ticket-qty-editor-"]')
-          .filter({ visible: true })
-        return (yield* quantityInput.count()) > 0 || (yield* quantityEditor.count()) > 0
-      }),
-    },
-  ])
+  page.waitForFirst(
+    [
+      { tag: "unavailable", when: isUnavailableModalVisible(page) },
+      {
+        tag: "code-used",
+        when: sheet
+          .getByText(MEMBERSHIP_CODE_USED_TEXT)
+          .count()
+          .pipe(Effect.map((count) => count > 0)),
+      },
+      {
+        tag: "ready",
+        when: Effect.gen(function* () {
+          const quantityInput = sheet.locator('input[type="number"]').filter({ visible: true })
+          const quantityEditor = sheet
+            .locator('[data-testid^="ticket-qty-editor-"]')
+            .filter({ visible: true })
+          return (yield* quantityInput.count()) > 0 || (yield* quantityEditor.count()) > 0
+        }),
+      },
+    ],
+    { timeout: Duration.seconds(5) },
+  )
 
 export const runPackages = Effect.gen(function* () {
   const store = yield* CustomerStore
