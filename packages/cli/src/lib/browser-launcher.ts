@@ -1,5 +1,5 @@
 import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "@tx/schema"
-import { Context, Effect, FileSystem, Layer, Path, References, Schema } from "effect"
+import { Context, Deferred, Duration, Effect, FileSystem, Layer, Path, References, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
 import { templateProfileDirectory, TxConfig } from "./config.ts"
@@ -8,6 +8,7 @@ import { resolveBrowserExtensionPath } from "./extension.ts"
 interface BrowserEntry {
   handle: ChildProcessSpawner.ChildProcessHandle
   profilePath: string
+  ready: Deferred.Deferred<void>
 }
 
 const mobileWindowSize = "390,844"
@@ -25,6 +26,13 @@ export const browserSwitches = [
   "--disable-popup-blocking",
   "--disable-component-update",
 ]
+
+export class BrowserReadyTimeout extends Schema.TaggedErrorClass<BrowserReadyTimeout>()(
+  "BrowserReadyTimeout",
+  {
+    browserId: Schema.String,
+  },
+) {}
 
 export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/cli/BrowserLauncher", {
   make: Effect.fn(function* () {
@@ -53,20 +61,43 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/cli
       userDataDir = tmpUserDataDir
     }
 
+    const kill = Effect.fn(function* (browserId: string) {
+      const entry = yield* Effect.sync(() => {
+        const e = browsers.get(browserId)
+        if (e) browsers.delete(browserId)
+        return e
+      })
+      if (!entry) return
+
+      yield* entry.handle.kill().pipe(Effect.ignore)
+      yield* fs.remove(entry.profilePath, { recursive: true, force: true }).pipe(Effect.ignore)
+    })
+
+    const markReady = Effect.fn(function* (browserId: string) {
+      const entry = yield* Effect.sync(() => browsers.get(browserId))
+      if (!entry) return
+      if (yield* Deferred.isDone(entry.ready)) return
+      yield* Deferred.succeed(entry.ready, void 0)
+    })
+
     const spawn = Effect.fn(function* ({
       url,
       port,
       template,
+      readyTimeout,
     }: {
       url: string
       port: number
       template?: string
+      readyTimeout: Duration.Duration
     }) {
       const browserId = yield* Effect.sync(() => {
         const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
         const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
         return `${port}-${nextBrowserIndex++}-${adjective}-${noun}`
       })
+
+      const ready = yield* Deferred.make<void>()
 
       const profilePath = path.join(userDataDir, browserId)
       if (template !== undefined) {
@@ -113,33 +144,32 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/cli
           yield* Effect.sync(() => {
             browsers.delete(browserId)
           })
-          yield* fs.remove(profilePath, { recursive: true, force: true })
+          yield* fs.remove(profilePath, { recursive: true, force: true }).pipe(Effect.ignore)
           yield* Effect.logDebug(`Profile removed for ${browserId}`)
         }, Effect.orDie),
       )
 
-      const entry = { handle, profilePath }
+      const entry = { handle, profilePath, ready }
       yield* Effect.sync(() => {
         browsers.set(browserId, entry)
       })
       yield* Effect.logDebug(`Browser spawned ${browserId}`, entry)
 
+      yield* Deferred.await(ready).pipe(
+        Effect.timeoutOrElse({
+          duration: readyTimeout,
+          orElse: () =>
+            Effect.gen(function* () {
+              yield* kill(browserId)
+              return yield* new BrowserReadyTimeout({ browserId })
+            }),
+        }),
+      )
+
       return browserId
     })
 
-    const kill = Effect.fn(function* (browserId: string) {
-      const entry = yield* Effect.sync(() => {
-        const e = browsers.get(browserId)
-        if (e) browsers.delete(browserId)
-        return e
-      })
-      if (!entry) return
-
-      yield* entry.handle.kill().pipe(Effect.ignore)
-      yield* fs.remove(entry.profilePath, { recursive: true, force: true })
-    })
-
-    return { spawn, kill }
+    return { spawn, kill, markReady }
   }),
 }) {
   static layer = Layer.effect(this, this.make())

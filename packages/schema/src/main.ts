@@ -122,6 +122,10 @@ export const ReportPaymentConfirmPayload = Schema.Struct({
 })
 
 export const OperatorRpcs = RpcGroup.make(
+  Rpc.make("BrowserReady", {
+    payload: ClaimCustomerReq,
+    success: Schema.Void,
+  }),
   Rpc.make("ClaimCustomer", {
     payload: ClaimCustomerReq,
     success: ClaimNextRes,

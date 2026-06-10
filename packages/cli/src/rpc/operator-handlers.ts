@@ -1,5 +1,6 @@
 import { customerKey, OperatorRpcs } from "@tx/schema"
 import { Effect, Formatter } from "effect"
+import { BrowserLauncher } from "../lib/browser-launcher.ts"
 import { TxConfig } from "../lib/config.ts"
 import { Discord } from "../lib/discord.ts"
 import { discordWebhook } from "../lib/discord-webhook.ts"
@@ -10,11 +11,16 @@ export const OperatorRpcHandlers = OperatorRpcs.toLayer(
   Effect.gen(function* () {
     const pool = yield* PoolUpstream
     const sessions = yield* SessionMap
+    const browser = yield* BrowserLauncher
     const { discordWebhookUrl } = yield* TxConfig
     const discord = yield* Discord
     const poolEmptyLoggedForBrowser = new Set<string>()
 
     return OperatorRpcs.of({
+      BrowserReady: ({ browserId }) =>
+        browser.markReady(browserId).pipe(
+          Effect.tap(() => Effect.logDebug("Browser ready", browserId)),
+        ),
       ClaimCustomer: ({ browserId }) =>
         Effect.gen(function* () {
           const existing = sessions.get(browserId)

@@ -1,12 +1,11 @@
 import { NodeHttpServer } from "@effect/platform-node"
 import { OperatorRpcs } from "@tx/schema"
-import { Console, Effect, FileSystem, Layer, Option, Path, Terminal } from "effect"
+import { Console, Duration, Effect, FileSystem, Layer, Option, Path, Terminal } from "effect"
 import { Argument, Command, Flag, Prompt } from "effect/unstable/cli"
 import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 import { createServer } from "node:http"
-import os from "node:os"
 import { BrowserLauncher, browserSwitches } from "../lib/browser-launcher.ts"
 import { TEMPLATE_PREFIX, templateProfileDirectory, TxConfig } from "../lib/config.ts"
 import { Discord } from "../lib/discord.ts"
@@ -292,10 +291,24 @@ const tiketStartCommand = Command.make(
     count: Flag.integer("browser-count").pipe(
       Flag.withAlias("n"),
       Flag.withDescription(
-        "How many browser instances to spawn. Each instance claims customers independently from the pool. Spawn parallelism is capped at roughly one quarter of available CPU cores.",
+        "How many browser instances to spawn. Each instance claims customers independently from the pool.",
       ),
       Flag.withDefault(1),
       Flag.withMetavar("N"),
+    ),
+    spawnConcurrency: Flag.integer("spawn-concurrency").pipe(
+      Flag.withDescription(
+        "How many browsers may boot at once. Each slot is held until the extension signals ready or the ready timeout expires.",
+      ),
+      Flag.withDefault(2),
+      Flag.withMetavar("N"),
+    ),
+    browserReadyTimeout: Flag.integer("browser-ready-timeout").pipe(
+      Flag.withDescription(
+        "Seconds to wait for each browser to signal ready before killing it and continuing with the next spawn.",
+      ),
+      Flag.withDefault(90),
+      Flag.withMetavar("SECONDS"),
     ),
     template: Flag.string("template").pipe(
       Flag.optional,
@@ -305,7 +318,15 @@ const tiketStartCommand = Command.make(
       Flag.withMetavar("NAME"),
     ),
   },
-  Effect.fn(function* ({ count, customerData, serverUrl, template, url }) {
+  Effect.fn(function* ({
+    count,
+    customerData,
+    serverUrl,
+    template,
+    url,
+    spawnConcurrency,
+    browserReadyTimeout,
+  }) {
     const hasCustomerData = Option.isSome(customerData)
     const hasServerUrl = Option.isSome(serverUrl)
 
@@ -341,17 +362,36 @@ const tiketStartCommand = Command.make(
       yield* Effect.logInfo("Operator listening on port", port)
 
       const browser = yield* BrowserLauncher
-      const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 4))
-      yield* Effect.all(
-        Array.from({ length: count }, () =>
-          browser.spawn({
-            url,
-            port,
-            ...(templateName === undefined ? {} : { template: templateName }),
-          }),
-        ),
-        { concurrency: parallelism },
+      const readyTimeout = Duration.seconds(browserReadyTimeout)
+      let ready = 0
+
+      yield* Effect.forEach(
+        Array.from({ length: count }),
+        () =>
+          browser
+            .spawn({
+              url,
+              port,
+              readyTimeout,
+              ...(templateName === undefined ? {} : { template: templateName }),
+            })
+            .pipe(
+              Effect.tap((id) => {
+                ready++
+                return Effect.logDebug(`Browser ready ${ready}/${count}`, id)
+              }),
+              Effect.catchTag("BrowserReadyTimeout", (error) =>
+                Effect.logWarning("Browser killed — ready timeout", error.browserId),
+              ),
+            ),
+        { concurrency: Math.max(1, spawnConcurrency), discard: true },
       )
+
+      if (ready === 0) {
+        return yield* Effect.die(new Error("No browsers became ready"))
+      }
+
+      yield* Effect.logInfo(`${ready}/${count} browsers ready`)
       return yield* Effect.never
     }).pipe(
       Effect.provide(
