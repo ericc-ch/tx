@@ -1,4 +1,5 @@
-import { Data, Duration, Effect, Schedule } from "effect"
+import { domChangeSchedule } from "@/lib/dom-watch"
+import { Data, Duration, Effect } from "effect"
 
 type TextMatcher = string | RegExp
 
@@ -46,8 +47,11 @@ type SelectOption =
     }
 
 const defaultTimeout = Duration.seconds(30)
-const pollInterval = Duration.millis(50)
-const pollSchedule = Schedule.spaced(pollInterval)
+
+type WaitForFirstOutcome = {
+  readonly tag: string
+  readonly when: Effect.Effect<boolean, never, never>
+}
 
 export class LocatorTimeout extends Data.TaggedError("LocatorTimeout")<{
   readonly selector: string
@@ -116,7 +120,7 @@ export class Locator {
 
   getByRole(role: string, options: ByRoleOptions = {}) {
     return this.locatorBy(
-      () => allDescendants(this.query()).filter((element) => matchesRole(element, role, options)),
+      () => collectByRole(this.query(), role, options),
       `getByRole(${JSON.stringify(role)})`,
     )
   }
@@ -140,22 +144,14 @@ export class Locator {
 
   getByPlaceholder(text: TextMatcher, options?: TextOptions) {
     return this.locatorBy(
-      () =>
-        allDescendants(this.query()).filter((element) =>
-          element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
-            ? matchesText(element.placeholder, text, !!options?.exact)
-            : false,
-        ),
+      () => collectByPlaceholder(this.query(), text, options),
       `getByPlaceholder(${formatMatcher(text)})`,
     )
   }
 
   getByTestId(testId: TextMatcher) {
     return this.locatorBy(
-      () =>
-        allDescendants(this.query()).filter((element) =>
-          matchesText(element.getAttribute("data-testid") ?? "", testId, true),
-        ),
+      () => collectByTestId(this.query(), testId),
       `getByTestId(${formatMatcher(testId)})`,
     )
   }
@@ -495,7 +491,7 @@ export class Page {
 
   getByRole(role: string, options: ByRoleOptions = {}) {
     return Page.locatorBy(
-      () => allElements(this.root).filter((element) => matchesRole(element, role, options)),
+      () => collectByRole([this.root], role, options),
       `page.getByRole(${JSON.stringify(role)})`,
     )
   }
@@ -516,23 +512,38 @@ export class Page {
 
   getByPlaceholder(text: TextMatcher, options?: TextOptions) {
     return Page.locatorBy(
-      () =>
-        allElements(this.root).filter((element) =>
-          element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
-            ? matchesText(element.placeholder, text, !!options?.exact)
-            : false,
-        ),
+      () => collectByPlaceholder([this.root], text, options),
       `page.getByPlaceholder(${formatMatcher(text)})`,
     )
   }
 
   getByTestId(testId: TextMatcher) {
     return Page.locatorBy(
-      () =>
-        allElements(this.root).filter((element) =>
-          matchesText(element.getAttribute("data-testid") ?? "", testId, true),
-        ),
+      () => collectByTestId([this.root], testId),
       `page.getByTestId(${formatMatcher(testId)})`,
+    )
+  }
+
+  waitForFirst(outcomes: ReadonlyArray<WaitForFirstOutcome>, options?: { timeout?: Duration.Input }) {
+    const timeout = toDuration(options?.timeout ?? defaultTimeout)
+    const schedule = domChangeSchedule(this.root)
+
+    const check = Effect.gen(function* () {
+      for (const outcome of outcomes) {
+        if (yield* outcome.when) return outcome.tag
+      }
+      return "pending" as const
+    })
+
+    return check.pipe(
+      Effect.repeat({
+        until: (result) => result !== "pending",
+        schedule,
+      }),
+      Effect.timeoutOrElse({
+        duration: timeout,
+        orElse: () => Effect.succeed("timeout" as const),
+      }),
     )
   }
 
@@ -547,15 +558,16 @@ const isRetriablePollError = (error: unknown) =>
   (error instanceof NotInteractable && error.reason !== "wrong-element")
 
 const poll = <A, E>(
-  attempt: Effect.Effect<A, E>,
+  attempt: Effect.Effect<A, E, never>,
   options: { readonly selector: string; readonly state: string; readonly timeout?: Duration.Input },
 ) => {
   const timeout = toDuration(options.timeout)
+  const schedule = domChangeSchedule(document)
 
   return attempt.pipe(
     Effect.retry({
       while: isRetriablePollError,
-      schedule: pollSchedule,
+      schedule,
     }),
     Effect.timeoutOrElse({
       duration: timeout,
@@ -637,10 +649,83 @@ const evaluateElementState = (
 
 const allElements = (root: ParentNode) => [...root.querySelectorAll("*")]
 
-const allDescendants = (roots: ReadonlyArray<Element>) => {
+const escapeCssAttr = (value: string) =>
+  typeof CSS !== "undefined" && "escape" in CSS
+    ? CSS.escape(value)
+    : value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+
+const roleSelector = (role: string) => {
+  switch (role.toLowerCase()) {
+    case "button":
+      return 'button, [role="button"], input[type="button"], input[type="submit"], input[type="reset"]'
+    case "link":
+      return 'a[href], [role="link"]'
+    case "textbox":
+      return 'textarea, [role="textbox"], input:not([type]), input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="tel"], input[type="url"]'
+    case "checkbox":
+      return 'input[type="checkbox"], [role="checkbox"]'
+    case "radio":
+      return 'input[type="radio"], [role="radio"]'
+    case "combobox":
+      return "select, [role=\"combobox\"]"
+    case "heading":
+      return 'h1, h2, h3, h4, h5, h6, [role="heading"]'
+    case "img":
+      return 'img, [role="img"]'
+    case "list":
+      return "ul, ol, [role=\"list\"]"
+    case "listitem":
+      return "li, [role=\"listitem\"]"
+    case "dialog":
+      return 'dialog, [role="dialog"]'
+    default:
+      return undefined
+  }
+}
+
+const queryAll = (roots: ReadonlyArray<ParentNode | Element>, selector: string) => {
   const elements: Array<Element> = []
   for (const root of roots) {
-    elements.push(root)
+    elements.push(...root.querySelectorAll(selector))
+  }
+  return unique(elements)
+}
+
+const collectByRole = (
+  roots: ReadonlyArray<ParentNode | Element>,
+  role: string,
+  options: ByRoleOptions,
+) => {
+  const selector = roleSelector(role)
+  const candidates = selector ? queryAll(roots, selector) : allDescendants(roots)
+  return candidates.filter((element) => matchesRole(element, role, options))
+}
+
+const collectByTestId = (roots: ReadonlyArray<ParentNode | Element>, testId: TextMatcher) => {
+  if (typeof testId === "string") {
+    return queryAll(roots, `[data-testid="${escapeCssAttr(testId)}"]`)
+  }
+  return allDescendants(roots).filter((element) =>
+    matchesText(element.getAttribute("data-testid") ?? "", testId, true),
+  )
+}
+
+const collectByPlaceholder = (
+  roots: ReadonlyArray<ParentNode | Element>,
+  text: TextMatcher,
+  options?: TextOptions,
+) =>
+  queryAll(roots, "input[placeholder], textarea[placeholder]").filter(
+    (element) =>
+      element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
+        ? matchesText(element.placeholder, text, !!options?.exact)
+        : false,
+  )
+
+const allDescendants = (roots: ReadonlyArray<ParentNode | Element>) => {
+  const elements: Array<Element> = []
+  for (const root of roots) {
+    if (root instanceof Element) elements.push(root)
     elements.push(...root.querySelectorAll("*"))
   }
   return unique(elements)
