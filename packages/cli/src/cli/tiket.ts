@@ -1,6 +1,6 @@
 import { NodeHttpServer } from "@effect/platform-node"
 import { OperatorRpcs } from "@tx/schema"
-import { Effect, FileSystem, Layer, Option, Path, Terminal } from "effect"
+import { Console, Effect, FileSystem, Layer, Option, Path, Terminal } from "effect"
 import { Argument, Command, Flag, Prompt } from "effect/unstable/cli"
 import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
@@ -8,7 +8,7 @@ import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 import { createServer } from "node:http"
 import os from "node:os"
 import { BrowserLauncher, browserSwitches } from "../lib/browser-launcher.ts"
-import { PROFILE_TEMPLATE_DIRECTORY, TxConfig } from "../lib/config.ts"
+import { TEMPLATE_PREFIX, templateProfileDirectory, TxConfig } from "../lib/config.ts"
 import { Discord } from "../lib/discord.ts"
 import { PoolUpstream } from "../lib/pool-upstream.ts"
 import { normalizePoolRpcUrl } from "../lib/pool-url.ts"
@@ -16,17 +16,37 @@ import { SessionMap } from "../lib/session-map.ts"
 import { OperatorRpcHandlers } from "../rpc/operator-handlers.ts"
 
 const templateCreateProfileDirectory = "Draft"
+const templateNamePattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
+
+const validateTemplateName = (name: string) => {
+  if (!templateNamePattern.test(name) || name.length > 32) {
+    return Effect.die(
+      new Error(
+        `Invalid template name "${name}": use lowercase letters, digits, and hyphens (max 32 characters)`,
+      ),
+    )
+  }
+  return Effect.void
+}
+
+const templateNameArgument = Argument.string("name").pipe(
+  Argument.withDescription(
+    "Template name (lowercase letters, digits, hyphens). Stored at <userDataDir>/__template-<name>.",
+  ),
+)
 
 const templateCreateCommand = Command.make(
   "create",
-  {},
+  { name: templateNameArgument },
   Effect.fn(
-    function* () {
+    function* ({ name }) {
+      yield* validateTemplateName(name)
+
       const fs = yield* FileSystem.FileSystem
       const path = yield* Path.Path
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
       const { config, paths } = yield* TxConfig
-      const { templateDir } = paths
+      const templateDir = path.join(paths.userDataDir, templateProfileDirectory(name))
       const tempUserDataDir = yield* fs.makeTempDirectoryScoped({
         prefix: "tx-template-create-",
       })
@@ -49,7 +69,7 @@ const templateCreateCommand = Command.make(
 
       const save = yield* Prompt.run(
         Prompt.confirm({
-          message: "Save as template?",
+          message: `Save as template "${name}"?`,
           initial: false,
         }),
       ).pipe(Effect.catchIf(Terminal.isQuitError, () => Effect.succeed(false)))
@@ -72,38 +92,41 @@ const templateCreateCommand = Command.make(
   ),
 ).pipe(
   Command.withDescription(
-    "Open a disposable browser, log into Tiket, and optionally save the profile as the shared template at <userDataDir>/__profile-template. Replaces any existing template when you confirm save.",
+    "Open a disposable browser, log into Tiket, and optionally save the profile as a named template at <userDataDir>/__template-<name>. Replaces that template when you confirm save.",
   ),
   Command.withExamples([
     {
-      command: "tx tiket template create",
-      description: "Create or replace the shared login template",
+      command: "tx tiket template create team-alpha",
+      description: "Create or replace the team-alpha login template",
     },
   ]),
 )
 
 const templateUpdateCommand = Command.make(
   "update",
-  {},
+  { name: templateNameArgument },
   Effect.fn(
-    function* () {
+    function* ({ name }) {
+      yield* validateTemplateName(name)
+
       const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
       const { config, paths } = yield* TxConfig
-      const { userDataDir, templateDir } = paths
+      const templateDir = path.join(paths.userDataDir, templateProfileDirectory(name))
 
       if (!(yield* fs.exists(templateDir))) {
         return yield* Effect.die(
           new Error(
-            `Template profile not found at ${templateDir}. Create one with: tx tiket template create`,
+            `Template "${name}" not found at ${templateDir}. Create one with: tx tiket template create ${name}`,
           ),
         )
       }
 
       const handle = yield* spawner.spawn(
         ChildProcess.make(config.browserExecutable, [
-          `--user-data-dir=${userDataDir}`,
-          `--profile-directory=${PROFILE_TEMPLATE_DIRECTORY}`,
+          `--user-data-dir=${paths.userDataDir}`,
+          `--profile-directory=${templateProfileDirectory(name)}`,
           ...browserSwitches,
         ]),
       )
@@ -117,22 +140,131 @@ const templateUpdateCommand = Command.make(
   ),
 ).pipe(
   Command.withDescription(
-    "Open the existing template profile in your configured userDataDir so you can refresh Tiket cookies or re-authenticate. Changes are written back to __profile-template when you close the browser.",
+    "Open an existing named template profile so you can refresh Tiket cookies or re-authenticate. Changes are written back when you close the browser.",
   ),
   Command.withExamples([
     {
-      command: "tx tiket template update",
-      description: "Refresh an existing template without recreating it",
+      command: "tx tiket template update team-alpha",
+      description: "Refresh the team-alpha template without recreating it",
+    },
+  ]),
+)
+
+const templateListCommand = Command.make(
+  "list",
+  {},
+  Effect.fn(
+    function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const { paths } = yield* TxConfig
+      const entries = yield* fs.readDirectory(paths.userDataDir)
+      const names: Array<string> = []
+
+      for (const entry of entries) {
+        if (!entry.startsWith(TEMPLATE_PREFIX)) continue
+        const entryPath = path.join(paths.userDataDir, entry)
+        const stat = yield* fs.stat(entryPath)
+        if (stat.type === "Directory") {
+          names.push(entry.slice(TEMPLATE_PREFIX.length))
+        }
+      }
+
+      names.sort()
+      if (names.length === 0) {
+        yield* Effect.logInfo("No templates")
+        return
+      }
+
+      for (const name of names) {
+        yield* Console.log(name)
+      }
+    },
+    Effect.provide(TxConfig.layer),
+  ),
+).pipe(
+  Command.withDescription(
+    "List named template profiles in userDataDir (directories matching __template-<name>).",
+  ),
+  Command.withExamples([
+    {
+      command: "tx tiket template list",
+      description: "Show all saved template names",
+    },
+  ]),
+)
+
+const templateDeleteCommand = Command.make(
+  "delete",
+  {
+    name: templateNameArgument,
+    force: Flag.boolean("force").pipe(
+      Flag.withAlias("f"),
+      Flag.withDefault(false),
+      Flag.withDescription("Delete without confirmation."),
+    ),
+  },
+  Effect.fn(
+    function* ({ name, force }) {
+      yield* validateTemplateName(name)
+
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const { paths } = yield* TxConfig
+      const templateDir = path.join(paths.userDataDir, templateProfileDirectory(name))
+
+      if (!(yield* fs.exists(templateDir))) {
+        return yield* Effect.die(
+          new Error(`Template "${name}" not found at ${templateDir}`),
+        )
+      }
+
+      if (!force) {
+        const confirmed = yield* Prompt.run(
+          Prompt.confirm({
+            message: `Delete template "${name}"?`,
+            initial: false,
+          }),
+        ).pipe(Effect.catchIf(Terminal.isQuitError, () => Effect.succeed(false)))
+
+        if (!confirmed) {
+          yield* Effect.logDebug("Template not deleted")
+          return
+        }
+      }
+
+      yield* fs.remove(templateDir, { recursive: true, force: true })
+      yield* Effect.logInfo("Template deleted", name)
+    },
+    Effect.provide(TxConfig.layer),
+  ),
+).pipe(
+  Command.withDescription(
+    "Remove a named template profile from userDataDir. Prompts for confirmation unless --force is set.",
+  ),
+  Command.withExamples([
+    {
+      command: "tx tiket template delete team-alpha",
+      description: "Delete team-alpha after confirmation",
+    },
+    {
+      command: "tx tiket template delete team-alpha --force",
+      description: "Delete team-alpha without prompting",
     },
   ]),
 )
 
 const templateCommand = Command.make("template").pipe(
-  Command.withShortDescription("Browser profile template"),
+  Command.withShortDescription("Browser profile templates"),
   Command.withDescription(
-    "Manage the Chromium profile template copied into every new browser started by tx tiket start. Use a template to share one Tiket login across many parallel browser instances.",
+    "Manage named Chromium profile templates under <userDataDir>/__template-<name>. Pass --template to tx tiket start to copy a template into new browser instances.",
   ),
-  Command.withSubcommands([templateCreateCommand, templateUpdateCommand]),
+  Command.withSubcommands([
+    templateCreateCommand,
+    templateUpdateCommand,
+    templateListCommand,
+    templateDeleteCommand,
+  ]),
 )
 
 const tiketStartCommand = Command.make(
@@ -165,8 +297,15 @@ const tiketStartCommand = Command.make(
       Flag.withDefault(1),
       Flag.withMetavar("N"),
     ),
+    template: Flag.string("template").pipe(
+      Flag.optional,
+      Flag.withDescription(
+        "Named login template to copy into each new browser profile (<userDataDir>/__template-<name>). Omitted or missing templates start with fresh profiles.",
+      ),
+      Flag.withMetavar("NAME"),
+    ),
   },
-  Effect.fn(function* ({ count, customerData, serverUrl, url }) {
+  Effect.fn(function* ({ count, customerData, serverUrl, template, url }) {
     const hasCustomerData = Option.isSome(customerData)
     const hasServerUrl = Option.isSome(serverUrl)
 
@@ -178,6 +317,11 @@ const tiketStartCommand = Command.make(
       return yield* Effect.die(
         new Error("--customer-data is required unless --server-url is provided"),
       )
+    }
+
+    const templateName = Option.getOrUndefined(template)
+    if (templateName !== undefined) {
+      yield* validateTemplateName(templateName)
     }
 
     const poolUpstreamLayer = Option.match(customerData, {
@@ -199,7 +343,13 @@ const tiketStartCommand = Command.make(
       const browser = yield* BrowserLauncher
       const parallelism = Math.max(1, Math.floor(os.availableParallelism() / 4))
       yield* Effect.all(
-        Array.from({ length: count }, () => browser.spawn({ url, port })),
+        Array.from({ length: count }, () =>
+          browser.spawn({
+            url,
+            port,
+            ...(templateName === undefined ? {} : { template: templateName }),
+          }),
+        ),
         { concurrency: parallelism },
       )
       return yield* Effect.never
@@ -254,13 +404,18 @@ const tiketStartCommand = Command.make(
         'tx tiket start --customer-data ./customers.json --log-level debug "https://www.tiket.com/to-do/my-event"',
       description: "Verbose logging from CLI and extension",
     },
+    {
+      command:
+        'tx tiket start --customer-data ./customers.json --template team-alpha -n 5 "https://www.tiket.com/to-do/my-event"',
+      description: "Five browsers using the team-alpha login template",
+    },
   ]),
 )
 
 export const tiketCommand = Command.make("tiket").pipe(
   Command.withShortDescription("Tiket.com automation"),
   Command.withDescription(
-    "Commands for running Tiket checkout automation in real browsers. The extension handles queue pages, package selection, order forms, and payment; the CLI spawns browsers and coordinates customer claims.",
+    "Commands for running Tiket checkout automation in real browsers. The extension handles package selection, order forms, and payment; the CLI spawns browsers and coordinates customer claims.",
   ),
   Command.withSubcommands([tiketStartCommand, templateCommand]),
 )

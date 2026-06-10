@@ -13,7 +13,7 @@ const debugPathsCommand = Command.make(
   }, Effect.provide(TxConfig.layer)),
 ).pipe(
   Command.withDescription(
-    "Print resolved filesystem paths: env-paths roots (config, data, cache, log, temp), config.json location, userDataDir, and the template directory (__profile-template).",
+    "Print resolved filesystem paths: env-paths roots (config, data, cache, log, temp), config.json location, and userDataDir (named templates live at __template-<name> inside it).",
   ),
   Command.withExamples([
     {

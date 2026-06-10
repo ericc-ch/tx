@@ -20,7 +20,7 @@ const serverTopCommand = Command.make("server").pipe(
 const command = Command.make("tx", {}).pipe(
   Command.withShortDescription("Tiket checkout automation"),
   Command.withDescription(
-    "Browser automation for tiket.com. Spawns Helium (or another Chromium browser) with the tx extension, coordinates customer claims, and sends Discord alerts for payments and queue position. Run tx readme for the full user guide.",
+    "Browser automation for tiket.com. Spawns Helium (or another Chromium browser) with the tx extension, coordinates customer claims, and sends Discord alerts on payment confirm. Run tx readme for the full user guide.",
   ),
   Command.withSubcommands([tiketCommand, serverTopCommand, debugCommand, readmeCommand]),
 )

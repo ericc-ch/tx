@@ -1,7 +1,8 @@
 import envPaths from "env-paths"
 import { Context, Effect, FileSystem, Layer, Path, Predicate, Schema } from "effect"
 const CONFIG_FILE_NAME = "config.json"
-export const PROFILE_TEMPLATE_DIRECTORY = "__profile-template"
+export const TEMPLATE_PREFIX = "__template-"
+export const templateProfileDirectory = (name: string) => `${TEMPLATE_PREFIX}${name}`
 const txEnvPaths = envPaths("tx")
 
 export const TxConfigSchema = Schema.Struct({
@@ -11,7 +12,7 @@ export const TxConfigSchema = Schema.Struct({
   }),
   userDataDir: Schema.optional(Schema.NonEmptyString).annotateKey({
     description:
-      "Chromium user-data root (--user-data-dir). Each browser gets a subdirectory profile here; the shared login template lives at <userDataDir>/__profile-template. Relative paths resolve from the config file directory. Defaults to the app data directory.",
+      "Chromium user-data root (--user-data-dir). Each browser gets a subdirectory profile here; named login templates live at <userDataDir>/__template-<name>. Relative paths resolve from the config file directory. Defaults to the app data directory.",
   }),
   copyUserDataDirToTmp: Schema.optional(Schema.Boolean).annotateKey({
     description:
@@ -66,7 +67,6 @@ export class TxConfig extends Context.Service<TxConfig>()("@tx/cli/TxConfig", {
       env: txEnvPaths,
       configFilePath,
       userDataDir,
-      templateDir: path.join(userDataDir, PROFILE_TEMPLATE_DIRECTORY),
     }
 
     yield* fs.makeDirectory(paths.userDataDir, { recursive: true })

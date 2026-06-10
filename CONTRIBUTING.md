@@ -6,7 +6,7 @@ Development setup and workspace reference for tx. For using the CLI and extensio
 
 - **[Bun](https://bun.sh)** 1.3+
 - Everything in [README — Prerequisites](README.md#prerequisites) (Helium, customer data)
-- **Discord webhook URL** — required for payment confirmations and queue alerts. Create one in your Discord server under _Server Settings → Integrations → Webhooks_. See [Discord webhook](#discord-webhook) below.
+- **Discord webhook URL** — required for payment confirmations. Create one in your Discord server under _Server Settings → Integrations → Webhooks_. See [Discord webhook](#discord-webhook) below.
 
 ## From source
 
@@ -45,14 +45,7 @@ Copy `packages/cli/.env.example` as a starting point:
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/0000000000000000000/your-token-here
 ```
 
-tx sends two kinds of alerts:
-
-| Event               | Content                                                                                         |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| **Payment confirm** | Embed with customer email, payment method, VA number, and a screenshot of the confirmation page |
-| **Queue alert**     | Transfer URL when queue position drops below 1,000 on `queue.tiket.com`                         |
-
-Queue alerts are sent once per queue session (deduplicated in extension local storage).
+tx sends a **payment confirm** Discord alert: embed with customer email, payment method, VA number, and a screenshot of the confirmation page.
 
 ## Workspace layout
 
@@ -101,9 +94,8 @@ Ship `packages/cli/dist/` as a unit: the platform binary plus `extension/` (with
 
 | Entrypoint       | Matches                              | Purpose                                   |
 | ---------------- | ------------------------------------ | ----------------------------------------- |
-| `tiket.content`  | `*://www.tiket.com/*`                | Main autobuy pipeline                     |
-| `queue.content`  | `*://queue.tiket.com/*`              | Queue position monitoring + Discord alert |
-| `golive.content` | `*://wait.thaiticketmajor.com/view*` | TTM human-verification auto-click         |
+| `tiket.content`  | `*://www.tiket.com/*`                | Main autobuy pipeline             |
+| `golive.content` | `*://wait.thaiticketmajor.com/view*` | TTM human-verification auto-click |
 
 Tests use real HTML fixtures under `fixtures/` (captured from production pages).
 
@@ -126,10 +118,10 @@ Tests use real HTML fixtures under `fixtures/` (captured from production pages).
 └─────────────────────────────────────────────────────────────┘
          │
          ▼
-   Discord webhook (payment + queue alerts)
+   Discord webhook (payment confirms)
 ```
 
-RPC between extension and operator uses NDJSON over HTTP. The pool server exposes `ClaimNext` and `Resolve`; the operator exposes `ClaimCustomer`, `ResolveCustomer`, `PushLogs`, `ReportPaymentConfirm`, and `ReportQueueAlert`.
+RPC between extension and operator uses NDJSON over HTTP. The pool server exposes `ClaimNext` and `Resolve`; the operator exposes `ClaimCustomer`, `ResolveCustomer`, `PushLogs`, and `ReportPaymentConfirm`.
 
 ## Conventions
 

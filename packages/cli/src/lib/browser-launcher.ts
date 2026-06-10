@@ -2,7 +2,7 @@ import { INIT_PAYLOAD_PARAM, InitPayloadFromUrlParam } from "@tx/schema"
 import { Context, Effect, FileSystem, Layer, Path, References, Schema } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import words from "../assets/words.json" with { type: "json" }
-import { PROFILE_TEMPLATE_DIRECTORY, TxConfig } from "./config.ts"
+import { templateProfileDirectory, TxConfig } from "./config.ts"
 import { resolveBrowserExtensionPath } from "./extension.ts"
 
 interface BrowserEntry {
@@ -33,8 +33,9 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/cli
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const { config, paths } = yield* TxConfig
     const browserExtensionPath = yield* resolveBrowserExtensionPath().pipe(Effect.orDie)
-    let { userDataDir, templateDir } = paths
+    let { userDataDir } = paths
     const browsers = new Map<string, BrowserEntry>()
+    const templatePaths = new Map<string, string | null>()
     let nextBrowserIndex = 1
 
     if (config.copyUserDataDirToTmp) {
@@ -50,17 +51,17 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/cli
         tmpUserDataDir,
       )
       userDataDir = tmpUserDataDir
-      templateDir = path.join(tmpUserDataDir, PROFILE_TEMPLATE_DIRECTORY)
     }
 
-    const hasTemplate = yield* fs.exists(templateDir)
-    if (!hasTemplate) {
-      yield* Effect.logInfo(
-        `No template profile at ${templateDir}; browsers will start with fresh profiles`,
-      )
-    }
-
-    const spawn = Effect.fn(function* ({ url, port }: { url: string; port: number }) {
+    const spawn = Effect.fn(function* ({
+      url,
+      port,
+      template,
+    }: {
+      url: string
+      port: number
+      template?: string
+    }) {
       const browserId = yield* Effect.sync(() => {
         const adjective = words.adjectives[Math.floor(Math.random() * words.adjectives.length)]
         const noun = words.nouns[Math.floor(Math.random() * words.nouns.length)]
@@ -68,9 +69,25 @@ export class BrowserLauncher extends Context.Service<BrowserLauncher>()("@tx/cli
       })
 
       const profilePath = path.join(userDataDir, browserId)
-      if (hasTemplate) {
-        yield* fs.copy(templateDir, profilePath)
-        yield* Effect.logDebug(`Profile created for ${browserId} at`, profilePath)
+      if (template !== undefined) {
+        let templatePath = templatePaths.get(template)
+        if (templatePath === undefined) {
+          const candidate = path.join(userDataDir, templateProfileDirectory(template))
+          if (yield* fs.exists(candidate)) {
+            templatePath = candidate
+          } else {
+            templatePath = null
+            yield* Effect.logInfo(
+              `Template "${template}" not found at ${candidate}; starting with fresh profile`,
+            )
+          }
+          templatePaths.set(template, templatePath)
+        }
+
+        if (templatePath !== null) {
+          yield* fs.copy(templatePath, profilePath)
+          yield* Effect.logDebug(`Profile created for ${browserId} from template`, template)
+        }
       }
 
       const minimumLogLevel = yield* References.MinimumLogLevel
