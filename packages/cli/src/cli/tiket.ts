@@ -6,6 +6,7 @@ import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { RpcSerialization, RpcServer } from "effect/unstable/rpc"
 import { createServer } from "node:http"
+import { availableParallelism } from "node:os"
 import { BrowserLauncher, browserSwitches } from "../lib/browser-launcher.ts"
 import { TEMPLATE_PREFIX, templateProfileDirectory, TxConfig } from "../lib/config.ts"
 import { Discord } from "../lib/discord.ts"
@@ -13,6 +14,8 @@ import { PoolUpstream } from "../lib/pool-upstream.ts"
 import { normalizePoolRpcUrl } from "../lib/pool-url.ts"
 import { SessionMap } from "../lib/session-map.ts"
 import { OperatorRpcHandlers } from "../rpc/operator-handlers.ts"
+
+const defaultSpawnConcurrency = Math.max(1, Math.floor(availableParallelism() / 2))
 
 const templateCreateProfileDirectory = "Draft"
 const templateNamePattern = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/
@@ -300,7 +303,7 @@ const tiketStartCommand = Command.make(
       Flag.withDescription(
         "How many browsers may boot at once. Each slot is held until the extension signals ready or the ready timeout expires.",
       ),
-      Flag.withDefault(2),
+      Flag.withDefault(defaultSpawnConcurrency),
       Flag.withMetavar("N"),
     ),
     browserReadyTimeout: Flag.integer("browser-ready-timeout").pipe(
